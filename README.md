@@ -1,2 +1,2 @@
 # im-select-win
-An alternative im-select implementation for  Windows
+Yet another im-select implementation for Windows.

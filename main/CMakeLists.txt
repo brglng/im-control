@@ -1,7 +1,12 @@
 cmake_minimum_required(VERSION 4.0)
 
-add_executable(im-select
+add_executable(im-control
     main.cpp
 )
 
-target_include_directories(im-select PRIVATE ../common/include)
+target_include_directories(im-control PRIVATE ../common/include)
+
+install(
+    TARGETS im-control
+    RUNTIME DESTINATION .
+)

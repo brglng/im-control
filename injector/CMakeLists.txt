@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 4.0)
 
-project(im-select-injector LANGUAGES CXX)
+project(im-control-injector LANGUAGES CXX)
 
 if(NOT CMAKE_CXX_STANDARD)
     set(CMAKE_CXX_STANDARD 17)
@@ -18,14 +18,20 @@ else()
     message(FATAL_ERROR "Unknown platform")
 endif()
 
-add_library(im-select-hook-${bitness} MODULE
+add_library(im-control-hook-${bitness} MODULE
     hook.cpp
 )
 
-target_include_directories(im-select-hook-${bitness} PRIVATE ../common/include)
+target_include_directories(im-control-hook-${bitness} PRIVATE ../common/include)
 
-add_executable(im-select-injector-${bitness}
+add_executable(im-control-injector-${bitness}
     injector.cpp
 )
 
-target_include_directories(im-select-injector-${bitness} PRIVATE ../common/include)
+target_include_directories(im-control-injector-${bitness} PRIVATE ../common/include)
+
+install(
+    TARGETS im-control-hook-${bitness} im-control-injector-${bitness}
+    RUNTIME DESTINATION .
+    LIBRARY DESTINATION .
+)

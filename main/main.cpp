@@ -2,14 +2,17 @@
 #include <string>
 #include <windows.h>
 #include "err.hpp"
+#include "log.hpp"
 
 int main (int argc, char *argv[]) {
     int err = 0;
     SetLastError(0);
 
+    log_init("main");
+
     HWND hForegroundWindow = GetForegroundWindow();
     if (hForegroundWindow == nullptr) {
-        fprintf_s(stderr, "ERROR: GetForegroundWindow() failed with 0x%lx\n", GetLastError());
+        log("ERROR: GetForegroundWindow() failed with 0x%lx\n", GetLastError());
         err = ERR_GET_FOREGROUND_WINDOW;
     }
 
@@ -19,7 +22,7 @@ int main (int argc, char *argv[]) {
         // Get the thread ID of the foreground window.
         dwThreadId = GetWindowThreadProcessId(hForegroundWindow, &dwProcessId);
         if (dwThreadId == 0) {
-	        fprintf_s(stderr, "ERROR: GetWindowThreadProcessId() failed with 0x%lx\n", GetLastError());
+	        log("ERROR: GetWindowThreadProcessId() failed with 0x%lx\n", GetLastError());
             err = ERR_GET_WINDOW_THREAD_PROCESS_ID;
         }
     }
@@ -28,7 +31,7 @@ int main (int argc, char *argv[]) {
     if (!err) {
         hForegroundProcess = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, dwProcessId);
         if (!hForegroundProcess) {
-	        fprintf_s(stderr, "ERROR: OpenProcess() failed with 0x%lx\n", GetLastError());
+	        log("ERROR: OpenProcess() failed with 0x%lx\n", GetLastError());
             err = ERR_OPEN_PROCESS;
         }
     }
@@ -36,7 +39,7 @@ int main (int argc, char *argv[]) {
     BOOL isWow64 = FALSE;
     if (!err) {
         if (!IsWow64Process(hForegroundProcess, &isWow64)) {
-            fprintf_s(stderr, "ERROR: IsWow64Process() failed with 0x%lx\n", GetLastError());
+            log("ERROR: IsWow64Process() failed with 0x%lx\n", GetLastError());
             err = ERR_IS_WOW64_PROCESS;
         }
     }
@@ -50,7 +53,7 @@ int main (int argc, char *argv[]) {
         injectorPath.resize(65536);
         injectorPathBytes = GetModuleFileNameA(NULL, &injectorPath[0], (DWORD)injectorPath.size());
         if (injectorPathBytes == 0) {
-            fprintf_s(stderr, "ERROR: GetModuleFileName() failed with 0x%lx\n", GetLastError());
+            log("ERROR: GetModuleFileName() failed with 0x%lx\n", GetLastError());
             err = ERR_GET_MODULE_FILE_NAME;
         }
     }
@@ -88,14 +91,14 @@ int main (int argc, char *argv[]) {
                             NULL,
                             &si,
                             &pi)) {
-            fprintf_s(stderr, "ERROR: CreateProcessA(\"%s\") failed with 0x%lx\n", injectorPath.c_str(), GetLastError());
+            log("ERROR: CreateProcessA(\"%s\") failed with 0x%lx\n", injectorPath.c_str(), GetLastError());
             err = ERR_CREATE_PROCESS;
         }
     }
 
     if (!err) {
         if (WaitForSingleObject(pi.hProcess, INFINITE) == WAIT_FAILED) {
-            fprintf_s(stderr, "ERROR: WaitForSingleObject() failed with 0x%lx\n", GetLastError());
+            log("ERROR: WaitForSingleObject() failed with 0x%lx\n", GetLastError());
             err = ERR_WAIT_FOR_SINGLE_OBJECT;
         }
     }

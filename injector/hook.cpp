@@ -3,6 +3,7 @@
 #include <windows.h>
 #include <msctf.h>
 #include "shared_data.hpp"
+#include "log.hpp"
 
 static HANDLE g_hMapFile = NULL;
 static SharedData* g_pSharedData = NULL;
@@ -11,10 +12,10 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMSelect_WndProcHook(int nCode
     if (nCode >= 0) {
         CWPSTRUCT* cwp = (CWPSTRUCT*)lParam;
         if (cwp != NULL && g_pSharedData && cwp->hwnd == g_pSharedData->hForegroundWindow && cwp->message == g_pSharedData->uMsg) {
-            fprintf_s(stderr, "WndProcHook: nCode=0x%x, hwnd=%p, message=0x%x\n", nCode, cwp->hwnd, cwp->message);
+            log("WndProcHook: nCode=0x%x, hwnd=%p, message=0x%x\n", nCode, cwp->hwnd, cwp->message);
             HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
             if (FAILED(hr)) {
-	        fprintf_s(stderr, "ERROR: CoInitialize() failed with 0x%0lx", hr);
+	        log("ERROR: CoInitialize() failed with 0x%0lx", hr);
                 return FALSE;
             }
 
@@ -27,7 +28,7 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMSelect_WndProcHook(int nCode
                                   IID_ITfInputProcessorProfileMgr,
                                   (void**)&pProfileMgr);
             if (SUCCEEDED(hr)) {
-                fprintf_s(stderr, "WndProcHook: pProfileMgr=%p\n", pProfileMgr);
+                log("WndProcHook: pProfileMgr=%p\n", pProfileMgr);
                 IEnumTfInputProcessorProfiles* pEnum = nullptr;
                 hr = pProfileMgr->EnumProfiles(0, &pEnum);
                 if (SUCCEEDED(hr)) {
@@ -65,9 +66,10 @@ INT APIENTRY DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
     HRESULT hr = S_OK;
     switch (fdwReason) {
         case DLL_PROCESS_ATTACH:
+            log_init("injector");
             g_hMapFile = OpenFileMapping(FILE_MAP_ALL_ACCESS, FALSE, SHARED_DATA_NAME);
             if (g_hMapFile == NULL) {
-                fprintf_s(stderr, "ERROR: OpenFileMapping() failed with 0x%0lx\n", GetLastError());
+                log("ERROR: OpenFileMapping() failed with 0x%0lx\n", GetLastError());
                 return FALSE;
             }
             g_pSharedData = (SharedData*)MapViewOfFile(g_hMapFile,
@@ -76,7 +78,7 @@ INT APIENTRY DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
                                                        0,
                                                        sizeof(SharedData));
             if (g_pSharedData == NULL) {
-                fprintf_s(stderr, "ERROR: MapViewOfFile() failed with 0x%0lx\n", GetLastError());
+                log("ERROR: MapViewOfFile() failed with 0x%0lx\n", GetLastError());
                 CloseHandle(g_hMapFile);
                 g_hMapFile = NULL;
                 return FALSE;

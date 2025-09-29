@@ -6,6 +6,12 @@
 
 int main (int argc, char *argv[]) {
     int err = 0;
+
+    if (argc != 2) {
+        fprintf(stderr, "Usage: %s <guid_profile>\n", argv[0]);
+        return ERR_INVALID_ARGUMENTS;
+    }
+
     SetLastError(0);
 
     log_init("main");

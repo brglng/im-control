@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <string>
 #include <windows.h>
 #include <msctf.h>
 #include "err.hpp"
@@ -64,12 +65,31 @@ int main(int argc, const char* argv[]) {
         }
     }
 
+    std::string dllPath;
+    DWORD dllPathBytes = 0;
+    if (!err) {
+        dllPath.resize(65536);
+        dllPathBytes = GetModuleFileNameA(NULL, &dllPath[0], (DWORD)dllPath.size());
+        if (dllPathBytes == 0) {
+            LOG_ERROR("ERROR: GetModuleFileName() failed with 0x%lx\n", GetLastError());
+            err = ERR_GET_MODULE_FILE_NAME;
+        }
+    }
+
     HMODULE hDll = NULL;
     if (!err) {
+        dllPath.resize(dllPathBytes);
+        size_t pos = dllPath.rfind('\\');
+        if (pos != std::string::npos) {
+            dllPath.resize(pos + 1);
+        }
+        dllPath += "im-select-hook-";
 #ifdef _WIN64
-        hDll = LoadLibrary("im-select-hook-64.dll");
+        dllPath += "64.dll";
+        hDll = LoadLibrary(dllPath.c_str());
 #else
-        hDll = LoadLibrary("im-select-hook-32.dll");
+        dllPath += "32.dll";
+        hDll = LoadLibrary(dllPath.c_str());
 #endif
         if (hDll == NULL) {
             LOG_ERROR("ERROR: LoadLibrary(\"im-select-hook.dll\") failed with 0x%lx\n", GetLastError());
@@ -90,7 +110,6 @@ int main(int argc, const char* argv[]) {
     int wideSize = 0;
     if (!err) {
         // Initialize the shared data structure.
-        pSharedData->dwInjectorProcessId = GetCurrentProcessId();
         pSharedData->hForegroundWindow = hForegroundWindow;
         pSharedData->dwThreadId = dwThreadId;
         pSharedData->uMsg = uMsg;

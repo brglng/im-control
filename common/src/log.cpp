@@ -16,7 +16,7 @@ public:
         if (SUCCEEDED(hr)) {
             filename.resize(strlen(filename.c_str()));
             filename += "\\im-control";
-            if (CreateDirectoryA(filename.c_str(), NULL)) {
+            if (CreateDirectoryA(filename.c_str(), NULL) || GetLastError() == ERROR_ALREADY_EXISTS) {
                 filename += '\\';
                 filename += std::move(name);
                 filename += ".log";

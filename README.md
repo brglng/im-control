@@ -18,7 +18,7 @@ Switch IM by GUID:
 im-control -profile <GUID>
 ```
 
-Set conversation mode:
+Set conversion mode:
 ```bash
 im-control -convmode <alphanumeric|native>
 ```

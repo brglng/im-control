@@ -1,6 +1,7 @@
 #ifndef LOG_HPP
 #define LOG_HPP
 
+#include <ctime>
 #include <windows.h>
 
 enum LogLevel {
@@ -24,9 +25,14 @@ void log_init(const char* name);
 void log(LogLevel level, const char* format, ...);
 
 #define LOG(level, format, ...) do { \
+    struct tm localTime; \
+    time_t now = time(nullptr); \
+    localtime_s(&localTime, &now); \
+    char timeBuffer[20]; \
+    strftime(timeBuffer, sizeof(timeBuffer), "%Y-%m-%d %H:%M:%S", &localTime); \
     DWORD processId = GetCurrentProcessId(); \
     DWORD threadId = GetCurrentThreadId(); \
-    log(level, "[%lu][%lu][%s] " format, processId, threadId, level_to_string(level), ##__VA_ARGS__); \
+    log(level, "[%s][%lu][%lu][%s] " format, timeBuffer, processId, threadId, level_to_string(level), ##__VA_ARGS__); \
 } while (0)
 
 #define LOG_DEBUG(format, ...) LOG(LOG_LEVEL_DEBUG, format, ##__VA_ARGS__)

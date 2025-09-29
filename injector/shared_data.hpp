@@ -5,7 +5,6 @@
 #include <msctf.h>
 
 typedef struct {
-    DWORD   dwInjectorProcessId;
     HWND    hForegroundWindow;
     DWORD   dwThreadId; 
     UINT    uMsg;

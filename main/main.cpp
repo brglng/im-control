@@ -12,7 +12,7 @@ int main (int argc, char *argv[]) {
 
     HWND hForegroundWindow = GetForegroundWindow();
     if (hForegroundWindow == nullptr) {
-        log("ERROR: GetForegroundWindow() failed with 0x%lx\n", GetLastError());
+        LOG_ERROR("ERROR: GetForegroundWindow() failed with 0x%lx\n", GetLastError());
         err = ERR_GET_FOREGROUND_WINDOW;
     }
 
@@ -22,7 +22,7 @@ int main (int argc, char *argv[]) {
         // Get the thread ID of the foreground window.
         dwThreadId = GetWindowThreadProcessId(hForegroundWindow, &dwProcessId);
         if (dwThreadId == 0) {
-	        log("ERROR: GetWindowThreadProcessId() failed with 0x%lx\n", GetLastError());
+	        LOG_ERROR("ERROR: GetWindowThreadProcessId() failed with 0x%lx\n", GetLastError());
             err = ERR_GET_WINDOW_THREAD_PROCESS_ID;
         }
     }
@@ -31,7 +31,7 @@ int main (int argc, char *argv[]) {
     if (!err) {
         hForegroundProcess = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, dwProcessId);
         if (!hForegroundProcess) {
-	        log("ERROR: OpenProcess() failed with 0x%lx\n", GetLastError());
+	        LOG_ERROR("ERROR: OpenProcess() failed with 0x%lx\n", GetLastError());
             err = ERR_OPEN_PROCESS;
         }
     }
@@ -39,7 +39,7 @@ int main (int argc, char *argv[]) {
     BOOL isWow64 = FALSE;
     if (!err) {
         if (!IsWow64Process(hForegroundProcess, &isWow64)) {
-            log("ERROR: IsWow64Process() failed with 0x%lx\n", GetLastError());
+            LOG_ERROR("ERROR: IsWow64Process() failed with 0x%lx\n", GetLastError());
             err = ERR_IS_WOW64_PROCESS;
         }
     }
@@ -53,7 +53,7 @@ int main (int argc, char *argv[]) {
         injectorPath.resize(65536);
         injectorPathBytes = GetModuleFileNameA(NULL, &injectorPath[0], (DWORD)injectorPath.size());
         if (injectorPathBytes == 0) {
-            log("ERROR: GetModuleFileName() failed with 0x%lx\n", GetLastError());
+            LOG_ERROR("ERROR: GetModuleFileName() failed with 0x%lx\n", GetLastError());
             err = ERR_GET_MODULE_FILE_NAME;
         }
     }
@@ -91,14 +91,14 @@ int main (int argc, char *argv[]) {
                             NULL,
                             &si,
                             &pi)) {
-            log("ERROR: CreateProcessA(\"%s\") failed with 0x%lx\n", injectorPath.c_str(), GetLastError());
+            LOG_ERROR("ERROR: CreateProcessA(\"%s\") failed with 0x%lx\n", injectorPath.c_str(), GetLastError());
             err = ERR_CREATE_PROCESS;
         }
     }
 
     if (!err) {
         if (WaitForSingleObject(pi.hProcess, INFINITE) == WAIT_FAILED) {
-            log("ERROR: WaitForSingleObject() failed with 0x%lx\n", GetLastError());
+            LOG_ERROR("ERROR: WaitForSingleObject() failed with 0x%lx\n", GetLastError());
             err = ERR_WAIT_FOR_SINGLE_OBJECT;
         }
     }
@@ -106,7 +106,10 @@ int main (int argc, char *argv[]) {
     if (!err) {
         DWORD exitCode = 0;
         if (GetExitCodeProcess(pi.hProcess, &exitCode)) {
-            err = (int)exitCode;
+            if (exitCode != 0) {
+                LOG_ERROR("ERROR: injector exited with code %lu\n", exitCode);
+                err = (int)exitCode;
+            }
         }
     }
 

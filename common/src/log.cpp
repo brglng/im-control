@@ -1,7 +1,8 @@
+#include <cstdarg>
 #include <cstdio>
 #include <mutex>
-#include <windows.h>
 #include <shlobj.h>
+#include <windows.h>
 #include "log.hpp"
 
 class LogFile {
@@ -64,19 +65,17 @@ void log_init(const char* name) {
     });
 }
 
-void vlog(const char* format, va_list args) {
-    if (log_file.get()) {
-        vfprintf(log_file.get(), format, args);
-        fprintf(log_file.get(), "\n");
-        fflush(log_file.get());
-    }
+static void vlog(LogLevel level, const char* format, va_list args) {
+    vfprintf(log_file.get(), format, args);
+    fputc('\n', log_file.get());
+    fflush(log_file.get());
 }
 
-void log(const char* format, ...) {
-    if (log_file.get()) {
+void log(LogLevel level, const char* format, ...) {
+    if (log_file.get() && level >= LOG_LEVEL_INFO) {
         va_list args;
         va_start(args, format);
-        vlog(format, args);
+        vlog(level, format, args);
         va_end(args);
     }
 }

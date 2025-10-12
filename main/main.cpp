@@ -18,7 +18,7 @@ int main (int argc, char *argv[]) {
 
     HWND hForegroundWindow = GetForegroundWindow();
     if (hForegroundWindow == nullptr) {
-        LOG_ERROR("ERROR: GetForegroundWindow() failed with 0x%lx\n", GetLastError());
+        LOG_ERROR("GetForegroundWindow() failed with 0x%lx\n", GetLastError());
         err = ERR_GET_FOREGROUND_WINDOW;
     }
 
@@ -28,7 +28,7 @@ int main (int argc, char *argv[]) {
         // Get the thread ID of the foreground window.
         dwThreadId = GetWindowThreadProcessId(hForegroundWindow, &dwProcessId);
         if (dwThreadId == 0) {
-	        LOG_ERROR("ERROR: GetWindowThreadProcessId() failed with 0x%lx\n", GetLastError());
+	        LOG_ERROR("GetWindowThreadProcessId() failed with 0x%lx\n", GetLastError());
             err = ERR_GET_WINDOW_THREAD_PROCESS_ID;
         }
     }
@@ -37,7 +37,7 @@ int main (int argc, char *argv[]) {
     if (!err) {
         hForegroundProcess = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, dwProcessId);
         if (!hForegroundProcess) {
-	        LOG_ERROR("ERROR: OpenProcess() failed with 0x%lx\n", GetLastError());
+	        LOG_ERROR("OpenProcess() failed with 0x%lx\n", GetLastError());
             err = ERR_OPEN_PROCESS;
         }
     }
@@ -45,7 +45,7 @@ int main (int argc, char *argv[]) {
     BOOL isWow64 = FALSE;
     if (!err) {
         if (!IsWow64Process(hForegroundProcess, &isWow64)) {
-            LOG_ERROR("ERROR: IsWow64Process() failed with 0x%lx\n", GetLastError());
+            LOG_ERROR("IsWow64Process() failed with 0x%lx\n", GetLastError());
             err = ERR_IS_WOW64_PROCESS;
         }
     }
@@ -59,7 +59,7 @@ int main (int argc, char *argv[]) {
         injectorPath.resize(65536);
         injectorPathBytes = GetModuleFileNameA(NULL, &injectorPath[0], (DWORD)injectorPath.size());
         if (injectorPathBytes == 0) {
-            LOG_ERROR("ERROR: GetModuleFileName() failed with 0x%lx\n", GetLastError());
+            LOG_ERROR("GetModuleFileName() failed with 0x%lx\n", GetLastError());
             err = ERR_GET_MODULE_FILE_NAME;
         }
     }
@@ -76,15 +76,19 @@ int main (int argc, char *argv[]) {
         if (pos != std::string::npos) {
             injectorPath.resize(pos + 1);
         }
-        injectorPath += "im-select-injector-";
+        injectorPath += "im-control-injector-";
         injectorPath += bitness;
         injectorPath += ".exe";
 
-        auto commandLine = std::to_string((uintptr_t)hForegroundWindow);
+        std::string commandLine = "\"";
+        commandLine += injectorPath;
+        commandLine += "\" ";
+        commandLine += std::to_string((uintptr_t)hForegroundWindow);
         commandLine += " ";
         commandLine += std::to_string(dwThreadId);
-        commandLine += " ";
+        commandLine += " \"";
         commandLine += argv[1];
+        commandLine += "\"";
         commandLine.reserve(65536);
 
         if (!CreateProcessA(injectorPath.c_str(),
@@ -97,14 +101,14 @@ int main (int argc, char *argv[]) {
                             NULL,
                             &si,
                             &pi)) {
-            LOG_ERROR("ERROR: CreateProcessA(\"%s\") failed with 0x%lx\n", injectorPath.c_str(), GetLastError());
+            LOG_ERROR("CreateProcessA(\"%s\") failed with 0x%lx\n", injectorPath.c_str(), GetLastError());
             err = ERR_CREATE_PROCESS;
         }
     }
 
     if (!err) {
         if (WaitForSingleObject(pi.hProcess, INFINITE) == WAIT_FAILED) {
-            LOG_ERROR("ERROR: WaitForSingleObject() failed with 0x%lx\n", GetLastError());
+            LOG_ERROR("WaitForSingleObject() failed with 0x%lx\n", GetLastError());
             err = ERR_WAIT_FOR_SINGLE_OBJECT;
         }
     }
@@ -113,7 +117,7 @@ int main (int argc, char *argv[]) {
         DWORD exitCode = 0;
         if (GetExitCodeProcess(pi.hProcess, &exitCode)) {
             if (exitCode != 0) {
-                LOG_ERROR("ERROR: injector exited with code %lu\n", exitCode);
+                LOG_ERROR("injector exited with code %lu\n", exitCode);
                 err = (int)exitCode;
             }
         }

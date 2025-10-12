@@ -11,6 +11,6 @@ typedef struct {
     GUID    guidProfile;
 } SharedData;
 
-#define SHARED_DATA_NAME "Local\\IMSelectSharedData"
+#define SHARED_DATA_NAME "Local\\IMControlSharedData"
 
 #endif /* SHARED_DATA_HPP */

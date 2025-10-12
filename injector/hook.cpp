@@ -8,7 +8,7 @@
 static HANDLE g_hMapFile = NULL;
 static SharedData* g_pSharedData = NULL;
 
-extern "C" __declspec(dllexport) LRESULT CALLBACK IMSelect_WndProcHook(int nCode, WPARAM wParam, LPARAM lParam) {
+extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCode, WPARAM wParam, LPARAM lParam) {
     if (nCode >= 0) {
         CWPSTRUCT* cwp = (CWPSTRUCT*)lParam;
         if (cwp != NULL && g_pSharedData && cwp->hwnd == g_pSharedData->hForegroundWindow && cwp->message == g_pSharedData->uMsg) {
@@ -66,10 +66,14 @@ INT APIENTRY DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
     HRESULT hr = S_OK;
     switch (fdwReason) {
         case DLL_PROCESS_ATTACH:
-            log_init("injector");
+#ifdef _WIN64
+            log_init("hook64");
+#else
+            log_init("hook32");
+#endif
             g_hMapFile = OpenFileMapping(FILE_MAP_ALL_ACCESS, FALSE, SHARED_DATA_NAME);
             if (g_hMapFile == NULL) {
-                LOG_INFO("ERROR: OpenFileMapping() failed with 0x%0lx\n", GetLastError());
+                LOG_INFO("OpenFileMapping() failed with 0x%0lx\n", GetLastError());
                 return FALSE;
             }
             g_pSharedData = (SharedData*)MapViewOfFile(g_hMapFile,
@@ -78,7 +82,7 @@ INT APIENTRY DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
                                                        0,
                                                        sizeof(SharedData));
             if (g_pSharedData == NULL) {
-                LOG_INFO("ERROR: MapViewOfFile() failed with 0x%0lx\n", GetLastError());
+                LOG_INFO("MapViewOfFile() failed with 0x%0lx\n", GetLastError());
                 CloseHandle(g_hMapFile);
                 g_hMapFile = NULL;
                 return FALSE;

@@ -18,7 +18,11 @@ int main(int argc, const char* argv[]) {
 
     SetLastError(0);
 
-    log_init("injector");
+#ifdef _WIN64
+    log_init("injector64");
+#else
+    log_init("injector32");
+#endif
 
     // Open shared memory for data sharing, and also for ensuring only one instance is running.
     HANDLE hMapFile = CreateFileMapping(INVALID_HANDLE_VALUE,
@@ -28,7 +32,7 @@ int main(int argc, const char* argv[]) {
                                         sizeof(SharedData),
                                         SHARED_DATA_NAME);
     if (hMapFile == NULL) {
-        LOG_ERROR("ERROR: CreateFileMapping failed with 0x%lx\n", GetLastError());
+        LOG_ERROR("CreateFileMapping failed with 0x%lx\n", GetLastError());
         err = ERR_CREATE_FILE_MAPPING;
     }
     if (!err) {
@@ -44,9 +48,9 @@ int main(int argc, const char* argv[]) {
     UINT uMsg = 0;
     if (!err) {
         // Register a message to be used for the hook.
-        uMsg = RegisterWindowMessage("IMSelect_WndProcHook");
+        uMsg = RegisterWindowMessage("IMControlWndMsg");
         if (uMsg == 0) {
-            LOG_ERROR("ERROR: RegisterWindowMessage(\"IMSelect_WndProcHook\") failed with 0x%lx\n", GetLastError());
+            LOG_ERROR("RegisterWindowMessage(\"IMControlWndMsg\") failed with 0x%lx\n", GetLastError());
             err = ERR_REGISTER_WINDOW_MESSAGE;
         }
     }
@@ -60,7 +64,7 @@ int main(int argc, const char* argv[]) {
                                                  0,
                                                  sizeof(SharedData));
         if (pSharedData == NULL) {
-            LOG_ERROR("ERROR: MapViewOfFile() failed with 0x%lx\n", GetLastError());
+            LOG_ERROR("MapViewOfFile() failed with 0x%lx\n", GetLastError());
             err = ERR_MAP_VIEW_OF_FILE;
         }
     }
@@ -71,7 +75,7 @@ int main(int argc, const char* argv[]) {
         dllPath.resize(65536);
         dllPathBytes = GetModuleFileNameA(NULL, &dllPath[0], (DWORD)dllPath.size());
         if (dllPathBytes == 0) {
-            LOG_ERROR("ERROR: GetModuleFileName() failed with 0x%lx\n", GetLastError());
+            LOG_ERROR("GetModuleFileName() failed with 0x%lx\n", GetLastError());
             err = ERR_GET_MODULE_FILE_NAME;
         }
     }
@@ -83,7 +87,7 @@ int main(int argc, const char* argv[]) {
         if (pos != std::string::npos) {
             dllPath.resize(pos + 1);
         }
-        dllPath += "im-select-hook-";
+        dllPath += "im-control-hook-";
 #ifdef _WIN64
         dllPath += "64.dll";
         hDll = LoadLibrary(dllPath.c_str());
@@ -92,16 +96,16 @@ int main(int argc, const char* argv[]) {
         hDll = LoadLibrary(dllPath.c_str());
 #endif
         if (hDll == NULL) {
-            LOG_ERROR("ERROR: LoadLibrary(\"im-select-hook.dll\") failed with 0x%lx\n", GetLastError());
+            LOG_ERROR("LoadLibrary(\"im-control-hook.dll\") failed with 0x%lx\n", GetLastError());
             err = ERR_LOAD_LIBRARY;
         }
     }
 
     HOOKPROC hHookProc = NULL;
     if (!err) {
-        hHookProc = (HOOKPROC)GetProcAddress(hDll, "IMSelect_WndProcHook");
+        hHookProc = (HOOKPROC)GetProcAddress(hDll, "IMControl_WndProcHook");
         if (hHookProc == NULL) {
-            LOG_ERROR("ERROR: GetProcAddress(\"IMSelect_WndProcHook\") failed with 0x%lx\n", GetLastError());
+            LOG_ERROR("GetProcAddress(\"IMControl_WndProcHook\") failed with 0x%lx\n", GetLastError());
             err = ERR_GET_PROC_ADDRESS;
         }
     }
@@ -128,7 +132,7 @@ int main(int argc, const char* argv[]) {
         MultiByteToWideChar(CP_ACP, 0, argv[3], -1, wszguidProfile, wideSize);
         HRESULT hr = CLSIDFromString(wszguidProfile, &pSharedData->guidProfile);
         if (FAILED(hr)) {
-            LOG_ERROR("ERROR: CLSIDFromString(\"%s\") failed with 0x%lx\n", argv[3], hr);
+            LOG_ERROR("CLSIDFromString(\"%s\") failed with 0x%lx\n", argv[3], hr);
             err = ERR_CLSID_FROM_STRING;
         }
     }
@@ -137,7 +141,7 @@ int main(int argc, const char* argv[]) {
         // Set a hook to intercept the window message.
         hHook = SetWindowsHookEx(WH_CALLWNDPROC, hHookProc, hDll, dwThreadId);
         if (hHook == NULL) {
-            LOG_ERROR("ERROR: SetWindowsHookEx() failed with 0x%lx\n", GetLastError());
+            LOG_ERROR("SetWindowsHookEx() failed with 0x%lx\n", GetLastError());
             err = ERR_SET_WINDOWS_HOOK_EX;
         }
     }
@@ -156,15 +160,15 @@ int main(int argc, const char* argv[]) {
         if (lSendResult == 0) {
             DWORD dwError = GetLastError();
             if (dwError == WAIT_TIMEOUT) {
-                LOG_ERROR("ERROR: SendMessageTimeout() timed out\n");
+                LOG_ERROR("SendMessageTimeout() timed out\n");
                 err = ERR_SEND_MESSAGE_TIMEOUT_TIMED_OUT;
             } else {
-                LOG_ERROR("ERROR: SendMessageTimeout() failed with 0x%lx\n", dwError);
+                LOG_ERROR("SendMessageTimeout() failed with 0x%lx\n", dwError);
                 err = ERR_SEND_MESSAGE_TIMEOUT_FAIL_AFTER_WAIT;
             }
         } else {
             if (dwResult != 0) {
-                LOG_ERROR("ERROR: SendMessageTimeout() returned 0x%llx\n", dwResult);
+                LOG_ERROR("SendMessageTimeout() returned 0x%llx\n", dwResult);
                 err = ERR_SEND_MESSAGE_TIMEOUT;
             }
         }

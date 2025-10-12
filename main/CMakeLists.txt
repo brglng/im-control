@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 4.0)
 add_executable(im-control
     main.cpp
     ../common/src/log.cpp
+    ../common/src/argparse.cpp
 )
 
 target_include_directories(im-control PRIVATE ../common/include)

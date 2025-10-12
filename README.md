@@ -13,24 +13,29 @@ cmake --install build --config RelWithDebInfo
 ```
 
 ## Usage
-Switch IM by TIP's GUID:
+Switch IM by langid and TIP's GUID:
 ```bash
-im-control --guid-profile <GUID>
+# English (United States)
+im-control -langid 0x0409
+
+# Chinese (Simplified, China) - Microsoft Pinyin
+im-control -langid 0x0804 -guidProfile {81D4E9C9-1D3B-41BC-9E6C-4B40BF79E35E}
+
+# Weasel
+im-control -langid 0x0804 -guidProfile {A3F4CDED-B1E9-41EE-9CA6-7B4D0DE6CB0A}
 ```
 
 Set conversion mode (WIP):
 ```bash
-im-control --conversion-mode <alphanumeric|native>
+im-control -conversionMode <ALPHANUMERIC|NATIVE>
 ```
 
 Or combine them (WIP):
 ```bash
-im-control --guid-profile <GUID> --conversion-mode <alphanumeric|native>
+im-control -guidProfile <GUID> -conversionMode <ALPHANUMERIC|NATIVE>
 ```
 
 List all IMs (WIP):
 ```bash
 im-control -l
 ```
-
-

@@ -32,19 +32,42 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
                 IEnumTfInputProcessorProfiles* pEnum = nullptr;
                 hr = pProfileMgr->EnumProfiles(0, &pEnum);
                 if (SUCCEEDED(hr)) {
+                    LOG_INFO("langid = 0x%04x, guidProfile = {%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
+                             g_pSharedData->langid,
+                             g_pSharedData->guidProfile.Data1,
+                             g_pSharedData->guidProfile.Data2,
+                             g_pSharedData->guidProfile.Data3,
+                             g_pSharedData->guidProfile.Data4[0],
+                             g_pSharedData->guidProfile.Data4[1],
+                             g_pSharedData->guidProfile.Data4[2],
+                             g_pSharedData->guidProfile.Data4[3],
+                             g_pSharedData->guidProfile.Data4[4],
+                             g_pSharedData->guidProfile.Data4[5],
+                             g_pSharedData->guidProfile.Data4[6],
+                             g_pSharedData->guidProfile.Data4[7]);
                     TF_INPUTPROCESSORPROFILE profile;
                     ULONG fetched = 0;
                     while (pEnum->Next(1, &profile, &fetched) == S_OK) {
-                        if (profile.guidProfile != GUID_NULL &&
-                            IsEqualGUID(profile.guidProfile, g_pSharedData->guidProfile) &&
-                            profile.langid != 0) {
-                            hr = pProfileMgr->ActivateProfile(profile.dwProfileType,
-                                                              profile.langid,
-                                                              profile.clsid,
-                                                              profile.guidProfile,
-                                                              profile.hkl,
-                                                              TF_IPPMF_FORPROCESS | TF_IPPMF_DONTCARECURRENTINPUTLANGUAGE);
-                            break;
+                        if (IsEqualGUID(profile.catid, GUID_TFCAT_TIP_KEYBOARD) && (profile.dwFlags & TF_IPP_FLAG_ENABLED)) {
+                            if (IsEqualGUID(g_pSharedData->guidProfile, GUID_NULL) &&
+                                g_pSharedData->langid != 0 && profile.langid == g_pSharedData->langid) {
+                                LOG_INFO("langid = 0x%04x", profile.langid);
+                                hr = pProfileMgr->ActivateProfile(profile.dwProfileType,
+                                                                  profile.langid,
+                                                                  profile.clsid,
+                                                                  profile.guidProfile,
+                                                                  profile.hkl,
+                                                                  TF_IPPMF_FORPROCESS | TF_IPPMF_DONTCARECURRENTINPUTLANGUAGE);
+                                break;
+                            } else if (IsEqualGUID(profile.guidProfile, g_pSharedData->guidProfile)) {
+                                hr = pProfileMgr->ActivateProfile(profile.dwProfileType,
+                                                                  profile.langid,
+                                                                  profile.clsid,
+                                                                  profile.guidProfile,
+                                                                  profile.hkl,
+                                                                  TF_IPPMF_FORPROCESS | TF_IPPMF_DONTCARECURRENTINPUTLANGUAGE);
+                                break;
+                            }
                         }
                     }
                     pEnum->Release();

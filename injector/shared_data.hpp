@@ -8,6 +8,7 @@ typedef struct {
     HWND    hForegroundWindow;
     DWORD   dwThreadId; 
     UINT    uMsg;
+    LANGID  langid;
     GUID    guidProfile;
 } SharedData;
 

@@ -1,22 +1,25 @@
 #include <cstdio>
+#include <cstring>
 #include <string>
 #include <windows.h>
+#include "argparse.hpp"
 #include "err.hpp"
 #include "log.hpp"
 
 int print_usage(const char* exeName) {
-    fprintf(stderr, "Usage: %s --guid-profile GUID\n", exeName);
+    fprintf(stderr, "Usage: %s [-langid LANGID] [-guidProfile GUID]\n", exeName);
     return ERR_INVALID_ARGUMENTS;
 }
 
-int main (int argc, char *argv[]) {
+int main (int argc, const char *argv[]) {
     int err = 0;
 
-    if (argc != 3) {
+    if (argc < 3) {
         return print_usage(argv[0]);
     }
 
-    if (strcmp(argv[1], "--guid-profile") != 0) {
+    CliArgs args;
+    if (parse_args(argc - 1, argv + 1, &args) != 0) {
         return print_usage(argv[0]);
     }
 
@@ -94,9 +97,14 @@ int main (int argc, char *argv[]) {
         commandLine += std::to_string((uintptr_t)hForegroundWindow);
         commandLine += " ";
         commandLine += std::to_string(dwThreadId);
-        commandLine += " --guid-profile \"";
-        commandLine += argv[2];
-        commandLine += "\"";
+        if (args.langid) {
+            commandLine += " -langid ";
+            commandLine += args.langid;
+        }
+        if (args.guidProfile) {
+            commandLine += " -guidProfile ";
+            commandLine += args.guidProfile;
+        }
         commandLine.reserve(65536);
 
         if (!CreateProcessA(injectorPath.c_str(),

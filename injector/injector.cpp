@@ -4,23 +4,25 @@
 #include <string>
 #include <windows.h>
 #include <msctf.h>
+#include "argparse.hpp"
 #include "err.hpp"
 #include "log.hpp"
 #include "shared_data.hpp"
 
 int print_usage(const char* exeName) {
-    fprintf(stderr, "Usage: %s HWND THREAD_ID --guid-profile GUID\n", exeName);
+    fprintf(stderr, "Usage: %s <hWnd> <dwThreadId> [-langid LANGID] [-guidProfile GUID]\n", exeName);
     return ERR_INVALID_ARGUMENTS;
 }
 
 int main(int argc, const char* argv[]) {
     int err = OK;
 
-    if (argc != 5) {
+    if (argc < 3) {
         return print_usage(argv[0]);
     }
 
-    if (strcmp(argv[3], "--guid-profile") != 0) {
+    CliArgs args;
+    if (parse_args(argc - 3, argv + 3, &args) != 0) {
         return print_usage(argv[0]);
     }
 
@@ -125,26 +127,37 @@ int main(int argc, const char* argv[]) {
         pSharedData->hForegroundWindow = hForegroundWindow;
         pSharedData->dwThreadId = dwThreadId;
         pSharedData->uMsg = uMsg;
+        pSharedData->langid = 0;
         pSharedData->guidProfile = GUID_NULL;
 
-        wideSize = MultiByteToWideChar(CP_ACP, 0, argv[4], -1, NULL, 0);
+        if (args.langid) {
+            if (args.langid[0] == '0' && (args.langid[1] == 'x' || args.langid[1] == 'X')) {
+                pSharedData->langid = (LANGID)std::strtoul(args.langid + 2, NULL, 16);
+            } else {
+                pSharedData->langid = (LANGID)std::strtoul(args.langid, NULL, 10);
+            }
+        }
+
+    }
+
+    if (args.guidProfile) {
+        wideSize = MultiByteToWideChar(CP_ACP, 0, args.guidProfile, -1, NULL, 0);
         if (wideSize > 0) {
             wszguidProfile = (LPOLESTR)CoTaskMemAlloc(wideSize * sizeof(WCHAR));
             if (!wszguidProfile)
                 err = ERR_OUT_OF_MEMORY;
         }
-    }
-
-    HHOOK hHook = NULL;
-    if (!err) {
-        MultiByteToWideChar(CP_ACP, 0, argv[4], -1, wszguidProfile, wideSize);
-        HRESULT hr = CLSIDFromString(wszguidProfile, &pSharedData->guidProfile);
-        if (FAILED(hr)) {
-            LOG_ERROR("CLSIDFromString(\"%s\") failed with 0x%lx\n", argv[4], hr);
-            err = ERR_CLSID_FROM_STRING;
+        if (!err) {
+            MultiByteToWideChar(CP_ACP, 0, args.guidProfile, -1, wszguidProfile, wideSize);
+            HRESULT hr = CLSIDFromString(wszguidProfile, &pSharedData->guidProfile);
+            if (FAILED(hr)) {
+                LOG_ERROR("CLSIDFromString(\"%s\") failed with 0x%lx\n", args.guidProfile, hr);
+                err = ERR_CLSID_FROM_STRING;
+            }
         }
     }
 
+    HHOOK hHook = NULL;
     if (!err) {
         // Set a hook to intercept the window message.
         hHook = SetWindowsHookEx(WH_CALLWNDPROC, hHookProc, hDll, dwThreadId);

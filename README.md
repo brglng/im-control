@@ -43,3 +43,8 @@ List all IMs (WIP):
 ```bash
 im-control -l
 ```
+
+Get current IM (WIP):
+```bash
+im-control
+```

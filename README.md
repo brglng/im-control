@@ -1,6 +1,10 @@
 # im-control
 Yet another im-select implementation for Windows.
 
+Advantages over [`im-select`](https://github.com/daipeihust/im-select):
+- Works for nearly all kinds of Windows, including console window and UWP windows.
+- Allows for switching IM by TIP's GUID, while `im-select` only switches languages.
+
 ## Build
 ```bash
 cmake -S . -B build -G "Visual Studio 17 2022"

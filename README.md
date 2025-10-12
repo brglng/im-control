@@ -1,8 +1,8 @@
 # im-control
-Yet another im-select implementation for Windows.
+Yet another [`im-select`](https://github.com/daipeihust/im-select) implementation for Windows.
 
-Advantages over [`im-select`](https://github.com/daipeihust/im-select):
-- Works for nearly all kinds of Windows, including console window and UWP windows.
+Advantages over `im-select`:
+- Works for nearly all kinds of windows, including console window and UWP windows.
 - Allows for switching IM by TIP's GUID, while `im-select` only switches languages.
 
 ## Build

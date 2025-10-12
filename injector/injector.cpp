@@ -8,12 +8,20 @@
 #include "log.hpp"
 #include "shared_data.hpp"
 
+int print_usage(const char* exeName) {
+    fprintf(stderr, "Usage: %s HWND THREAD_ID --guid-profile GUID\n", exeName);
+    return ERR_INVALID_ARGUMENTS;
+}
+
 int main(int argc, const char* argv[]) {
     int err = OK;
 
-    if (argc != 4) {
-        fprintf(stderr, "Usage: %s <hwnd> <thread_id> <guid_profile>\n", argv[0]);
-        return ERR_INVALID_ARGUMENTS;
+    if (argc != 5) {
+        return print_usage(argv[0]);
+    }
+
+    if (strcmp(argv[3], "--guid-profile") != 0) {
+        return print_usage(argv[0]);
     }
 
     SetLastError(0);
@@ -119,7 +127,7 @@ int main(int argc, const char* argv[]) {
         pSharedData->uMsg = uMsg;
         pSharedData->guidProfile = GUID_NULL;
 
-        wideSize = MultiByteToWideChar(CP_ACP, 0, argv[3], -1, NULL, 0);
+        wideSize = MultiByteToWideChar(CP_ACP, 0, argv[4], -1, NULL, 0);
         if (wideSize > 0) {
             wszguidProfile = (LPOLESTR)CoTaskMemAlloc(wideSize * sizeof(WCHAR));
             if (!wszguidProfile)
@@ -129,10 +137,10 @@ int main(int argc, const char* argv[]) {
 
     HHOOK hHook = NULL;
     if (!err) {
-        MultiByteToWideChar(CP_ACP, 0, argv[3], -1, wszguidProfile, wideSize);
+        MultiByteToWideChar(CP_ACP, 0, argv[4], -1, wszguidProfile, wideSize);
         HRESULT hr = CLSIDFromString(wszguidProfile, &pSharedData->guidProfile);
         if (FAILED(hr)) {
-            LOG_ERROR("CLSIDFromString(\"%s\") failed with 0x%lx\n", argv[3], hr);
+            LOG_ERROR("CLSIDFromString(\"%s\") failed with 0x%lx\n", argv[4], hr);
             err = ERR_CLSID_FROM_STRING;
         }
     }

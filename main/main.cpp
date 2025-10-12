@@ -4,12 +4,20 @@
 #include "err.hpp"
 #include "log.hpp"
 
+int print_usage(const char* exeName) {
+    fprintf(stderr, "Usage: %s --guid-profile GUID\n", exeName);
+    return ERR_INVALID_ARGUMENTS;
+}
+
 int main (int argc, char *argv[]) {
     int err = 0;
 
-    if (argc != 2) {
-        fprintf(stderr, "Usage: %s <guid_profile>\n", argv[0]);
-        return ERR_INVALID_ARGUMENTS;
+    if (argc != 3) {
+        return print_usage(argv[0]);
+    }
+
+    if (strcmp(argv[1], "--guid-profile") != 0) {
+        return print_usage(argv[0]);
     }
 
     SetLastError(0);
@@ -86,8 +94,8 @@ int main (int argc, char *argv[]) {
         commandLine += std::to_string((uintptr_t)hForegroundWindow);
         commandLine += " ";
         commandLine += std::to_string(dwThreadId);
-        commandLine += " \"";
-        commandLine += argv[1];
+        commandLine += " --guid-profile \"";
+        commandLine += argv[2];
         commandLine += "\"";
         commandLine.reserve(65536);
 

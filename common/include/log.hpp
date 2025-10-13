@@ -24,7 +24,7 @@ inline constexpr const char* level_to_string(LogLevel level) {
 void log_init(const char* name);
 void log(LogLevel level, const char* format, ...);
 
-#define LOG(level, format, ...) do { \
+#define LOG(file, line, func, level, format, ...) do { \
     struct tm localTime; \
     time_t now = time(nullptr); \
     localtime_s(&localTime, &now); \
@@ -32,12 +32,12 @@ void log(LogLevel level, const char* format, ...);
     strftime(timeBuffer, sizeof(timeBuffer), "%Y-%m-%d %H:%M:%S", &localTime); \
     DWORD processId = GetCurrentProcessId(); \
     DWORD threadId = GetCurrentThreadId(); \
-    log(level, "[%s][%lu][%lu][%s] " format, timeBuffer, processId, threadId, level_to_string(level), ##__VA_ARGS__); \
+    log(level, "[%s][%lu][%lu][%s:%d:%s][%s] " format, timeBuffer, processId, threadId, file, line, func, level_to_string(level), ##__VA_ARGS__); \
 } while (0)
 
-#define LOG_DEBUG(format, ...) LOG(LOG_LEVEL_DEBUG, format, ##__VA_ARGS__)
-#define LOG_INFO(format, ...)  LOG(LOG_LEVEL_INFO,  format, ##__VA_ARGS__)
-#define LOG_WARN(format, ...)  LOG(LOG_LEVEL_WARN,  format, ##__VA_ARGS__)
-#define LOG_ERROR(format, ...) LOG(LOG_LEVEL_ERROR, format, ##__VA_ARGS__)
+#define LOG_DEBUG(format, ...) LOG(__FILE__, __LINE__, __FUNCTION__, LOG_LEVEL_DEBUG, format, ##__VA_ARGS__)
+#define LOG_INFO(format, ...)  LOG(__FILE__, __LINE__, __FUNCTION__, LOG_LEVEL_INFO,  format, ##__VA_ARGS__)
+#define LOG_WARN(format, ...)  LOG(__FILE__, __LINE__, __FUNCTION__, LOG_LEVEL_WARN,  format, ##__VA_ARGS__)
+#define LOG_ERROR(format, ...) LOG(__FILE__, __LINE__, __FUNCTION__, LOG_LEVEL_ERROR, format, ##__VA_ARGS__)
 
 #endif /* LOG_HPP */

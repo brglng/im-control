@@ -21,58 +21,167 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
 
             bool bCOMInitializedByMe = (hr == S_OK);
 
-            ITfInputProcessorProfileMgr* pProfileMgr = NULL;
-            hr = CoCreateInstance(CLSID_TF_InputProcessorProfiles,
-                                  NULL,
-                                  CLSCTX_INPROC_SERVER,
-                                  IID_ITfInputProcessorProfileMgr,
-                                  (void**)&pProfileMgr);
-            if (SUCCEEDED(hr)) {
-                LOG_INFO("WndProcHook: pProfileMgr=%p\n", pProfileMgr);
-                IEnumTfInputProcessorProfiles* pEnum = nullptr;
-                hr = pProfileMgr->EnumProfiles(0, &pEnum);
+            if (g_pSharedData->langid.has_value() || g_pSharedData->guidProfile.has_value()) {
+                ITfInputProcessorProfileMgr* pProfileMgr = NULL;
+                hr = CoCreateInstance(CLSID_TF_InputProcessorProfiles,
+                                      NULL,
+                                      CLSCTX_INPROC_SERVER,
+                                      IID_ITfInputProcessorProfileMgr,
+                                      (void**)&pProfileMgr);
                 if (SUCCEEDED(hr)) {
-                    LOG_INFO("langid = 0x%04x, guidProfile = {%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
-                             g_pSharedData->langid,
-                             g_pSharedData->guidProfile.Data1,
-                             g_pSharedData->guidProfile.Data2,
-                             g_pSharedData->guidProfile.Data3,
-                             g_pSharedData->guidProfile.Data4[0],
-                             g_pSharedData->guidProfile.Data4[1],
-                             g_pSharedData->guidProfile.Data4[2],
-                             g_pSharedData->guidProfile.Data4[3],
-                             g_pSharedData->guidProfile.Data4[4],
-                             g_pSharedData->guidProfile.Data4[5],
-                             g_pSharedData->guidProfile.Data4[6],
-                             g_pSharedData->guidProfile.Data4[7]);
-                    TF_INPUTPROCESSORPROFILE profile;
-                    ULONG fetched = 0;
-                    while (pEnum->Next(1, &profile, &fetched) == S_OK) {
-                        if (IsEqualGUID(profile.catid, GUID_TFCAT_TIP_KEYBOARD) && (profile.dwFlags & TF_IPP_FLAG_ENABLED)) {
-                            if (IsEqualGUID(g_pSharedData->guidProfile, GUID_NULL) &&
-                                g_pSharedData->langid != 0 && profile.langid == g_pSharedData->langid) {
-                                LOG_INFO("langid = 0x%04x", profile.langid);
-                                hr = pProfileMgr->ActivateProfile(profile.dwProfileType,
-                                                                  profile.langid,
-                                                                  profile.clsid,
-                                                                  profile.guidProfile,
-                                                                  profile.hkl,
-                                                                  TF_IPPMF_FORPROCESS | TF_IPPMF_DONTCARECURRENTINPUTLANGUAGE);
-                                break;
-                            } else if (IsEqualGUID(profile.guidProfile, g_pSharedData->guidProfile)) {
-                                hr = pProfileMgr->ActivateProfile(profile.dwProfileType,
-                                                                  profile.langid,
-                                                                  profile.clsid,
-                                                                  profile.guidProfile,
-                                                                  profile.hkl,
-                                                                  TF_IPPMF_FORPROCESS | TF_IPPMF_DONTCARECURRENTINPUTLANGUAGE);
-                                break;
+                    LOG_INFO("WndProcHook: pProfileMgr=%p\n", pProfileMgr);
+                    IEnumTfInputProcessorProfiles* pEnum = nullptr;
+                    hr = pProfileMgr->EnumProfiles(0, &pEnum);
+                    if (SUCCEEDED(hr)) {
+                        TF_INPUTPROCESSORPROFILE profile;
+                        ULONG fetched = 0;
+                        while (pEnum->Next(1, &profile, &fetched) == S_OK) {
+                            if (IsEqualGUID(profile.catid, GUID_TFCAT_TIP_KEYBOARD) && (profile.dwFlags & TF_IPP_FLAG_ENABLED)) {
+                                if (!g_pSharedData->guidProfile.has_value() &&
+                                    g_pSharedData->langid.has_value() &&
+                                    profile.langid == *g_pSharedData->langid)
+                                {
+                                    LOG_INFO("langid = 0x%04x", profile.langid);
+                                    hr = pProfileMgr->ActivateProfile(profile.dwProfileType,
+                                                                      profile.langid,
+                                                                      profile.clsid,
+                                                                      profile.guidProfile,
+                                                                      profile.hkl,
+                                                                      TF_IPPMF_FORPROCESS | TF_IPPMF_DONTCARECURRENTINPUTLANGUAGE);
+                                    if (FAILED(hr)) {
+                                        LOG_ERROR("ERROR: ActivateProfile() failed with 0x%0lx", hr);
+                                    }
+                                    break;
+                                } else if (IsEqualGUID(profile.guidProfile, *g_pSharedData->guidProfile)) {
+                                    LOG_INFO("guidProfile = {%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
+                                             profile.guidProfile.Data1,
+                                             profile.guidProfile.Data2,
+                                             profile.guidProfile.Data3,
+                                             profile.guidProfile.Data4[0],
+                                             profile.guidProfile.Data4[1],
+                                             profile.guidProfile.Data4[2],
+                                             profile.guidProfile.Data4[3],
+                                             profile.guidProfile.Data4[4],
+                                             profile.guidProfile.Data4[5],
+                                             profile.guidProfile.Data4[6],
+                                             profile.guidProfile.Data4[7]);
+                                    hr = pProfileMgr->ActivateProfile(profile.dwProfileType,
+                                                                      profile.langid,
+                                                                      profile.clsid,
+                                                                      profile.guidProfile,
+                                                                      profile.hkl,
+                                                                      TF_IPPMF_FORPROCESS | TF_IPPMF_DONTCARECURRENTINPUTLANGUAGE);
+                                    if (FAILED(hr)) {
+                                        LOG_ERROR("ERROR: ActivateProfile() failed with 0x%0lx", hr);
+                                    }
+                                    break;
+                                }
                             }
                         }
+                        pEnum->Release();
+                    } else {
+                        LOG_ERROR("ERROR: EnumProfiles() failed with 0x%0lx", hr);
                     }
-                    pEnum->Release();
+                    pProfileMgr->Release();
+                } else {
+                    LOG_ERROR("ERROR: CoCreateInstance(CLSID_TF_InputProcessorProfiles) failed with 0x%0lx", hr);
                 }
-                pProfileMgr->Release();
+            }
+
+            if (g_pSharedData->keyboardOpenClose || g_pSharedData->conversionModeNative) {
+                ITfThreadMgr* pThreadMgr = NULL;
+                hr = CoCreateInstance(CLSID_TF_ThreadMgr,
+                                      NULL,
+                                      CLSCTX_INPROC_SERVER,
+                                      IID_ITfThreadMgr,
+                                      (void**)&pThreadMgr);
+                ITfCompartmentMgr* pCompartmentMgr = nullptr;
+                if (SUCCEEDED(hr)) {
+                    hr = pThreadMgr->QueryInterface(IID_ITfCompartmentMgr, (void**)&pCompartmentMgr);
+                } else {
+                    LOG_ERROR("ERROR: CoCreateInstance(CLSID_TF_ThreadMgr) failed with 0x%0lx", hr);
+                }
+
+                if (SUCCEEDED(hr)) {
+                    if (g_pSharedData->keyboardOpenClose) {
+                        LOG_INFO("keyboardOpenClose = %d", *g_pSharedData->keyboardOpenClose);
+                        ITfCompartment* keyboardOpenCloseCompartment = nullptr;
+                        if (SUCCEEDED(hr)) {
+                            hr = pCompartmentMgr->GetCompartment(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE, &keyboardOpenCloseCompartment);
+                        } else {
+                            LOG_ERROR("ERROR: QueryInterface(IID_ITfCompartmentMgr) failed with 0x%0lx", hr);
+                        }
+                        VARIANT varKeyboardOpenClose;
+                        VariantInit(&varKeyboardOpenClose);
+                        varKeyboardOpenClose.vt = VT_I4;
+                        if (SUCCEEDED(hr)) {
+                            if (*g_pSharedData->keyboardOpenClose) {
+                                varKeyboardOpenClose.lVal = 1;
+                            } else {
+                                varKeyboardOpenClose.lVal = 0;
+                            }
+                            hr = keyboardOpenCloseCompartment->SetValue(0, &varKeyboardOpenClose);
+                        } else {
+                            LOG_ERROR("ERROR: GetCompartment(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE) failed with 0x%0lx", hr);
+                        }
+                        if (FAILED(hr)) {
+                            LOG_ERROR("ERROR: SetValue() failed with 0x%0lx", hr);
+                        }
+                        VariantClear(&varKeyboardOpenClose);
+                        if (keyboardOpenCloseCompartment) {
+                            keyboardOpenCloseCompartment->Release();
+                        }
+                    }
+
+                    if (g_pSharedData->conversionModeNative) {
+                        LOG_INFO("conversionModeNative = %d", *g_pSharedData->conversionModeNative);
+                        ITfCompartment* keyboardInputModeConversionCompartment = nullptr;
+                        if (SUCCEEDED(hr)) {
+                            hr = pCompartmentMgr->GetCompartment(GUID_COMPARTMENT_KEYBOARD_INPUTMODE_CONVERSION, &keyboardInputModeConversionCompartment);
+                        } else {
+                            LOG_ERROR("ERROR: QueryInterface(IID_ITfCompartmentMgr) failed with 0x%0lx", hr);
+                        }
+                        VARIANT varKeyboardInputModeConversion;
+                        VariantInit(&varKeyboardInputModeConversion);
+                        varKeyboardInputModeConversion.vt = VT_EMPTY;
+                        if (SUCCEEDED(hr)) {
+                            hr = keyboardInputModeConversionCompartment->GetValue(&varKeyboardInputModeConversion);
+                        } else {
+                            LOG_ERROR("ERROR: GetCompartment(GUID_COMPARTMENT_KEYBOARD_INPUTMODE_CONVERSION) failed with 0x%0lx", hr);
+                        }
+                        if (SUCCEEDED(hr)) {
+                            DWORD oldMode = varKeyboardInputModeConversion.lVal;
+                            DWORD newMode = oldMode;
+                            if  (*g_pSharedData->conversionModeNative) {
+                                newMode |= TF_CONVERSIONMODE_NATIVE;
+                            } else {
+                                newMode &= ~TF_CONVERSIONMODE_NATIVE;
+                            }
+                            if (newMode != oldMode) {
+                                varKeyboardInputModeConversion.lVal = newMode;
+                                hr = keyboardInputModeConversionCompartment->SetValue(0, &varKeyboardInputModeConversion);
+                            }
+                        } else {
+                            LOG_ERROR("ERROR: GetValue() failed with 0x%0lx", hr);
+                        }
+                        if (FAILED(hr)) {
+                            LOG_ERROR("ERROR: SetValue() failed with 0x%0lx", hr);
+                        }
+                        VariantClear(&varKeyboardInputModeConversion);
+                        if (keyboardInputModeConversionCompartment) {
+                            keyboardInputModeConversionCompartment->Release();
+                        }
+                    }
+                } else {
+                    LOG_ERROR("ERROR: QueryInterface(IID_ITfCompartmentMgr) failed with 0x%0lx", hr);
+                }
+
+                if (pCompartmentMgr) {
+                    pCompartmentMgr->Release();
+                }
+                if (pThreadMgr) {
+                    pThreadMgr->Release();
+                }
             }
 
             if (bCOMInitializedByMe) {

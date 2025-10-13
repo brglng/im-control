@@ -1,5 +1,11 @@
 cmake_minimum_required(VERSION 4.0)
 
+if(NOT CMAKE_CXX_STANDARD)
+    set(CMAKE_CXX_STANDARD 17)
+    set(CMAKE_CXX_STANDARD_REQUIRED ON)
+    set(CMAKE_CXX_EXTENSIONS OFF)
+endif()
+
 add_executable(im-control
     main.cpp
     ../common/src/log.cpp

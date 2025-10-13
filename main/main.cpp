@@ -7,16 +7,14 @@
 #include "log.hpp"
 
 int print_usage(const char* exeName) {
-    fprintf(stderr, "Usage: %s [-langid LANGID] [-guidProfile GUID]\n", exeName);
+    fprintf(stderr, "Usage: %s [-langid LANGID] [-guidProfile GUID] [-keyboardOpen|-keyboardClose] [-conversionMode <AlphaNumeric|Native[,...]>]\n", exeName);
+    fprintf(stderr, "       %s -l\n", exeName);
+    fprintf(stderr, "       %s\n", exeName);
     return ERR_INVALID_ARGUMENTS;
 }
 
-int main (int argc, const char *argv[]) {
+int main(int argc, const char *argv[]) {
     int err = 0;
-
-    if (argc < 3) {
-        return print_usage(argv[0]);
-    }
 
     CliArgs args;
     if (parse_args(argc - 1, argv + 1, &args) != 0) {
@@ -104,6 +102,17 @@ int main (int argc, const char *argv[]) {
         if (args.guidProfile) {
             commandLine += " -guidProfile ";
             commandLine += args.guidProfile;
+        }
+        if (args.keyboardOpenClose) {
+            if (*args.keyboardOpenClose) {
+                commandLine += " -keyboardOpen";
+            } else {
+                commandLine += " -keyboardClose";
+            }
+        }
+        if (args.conversionMode) {
+            commandLine += " -conversionMode ";
+            commandLine += args.conversionMode;
         }
         commandLine.reserve(65536);
 

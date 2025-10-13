@@ -10,7 +10,7 @@
 #include "shared_data.hpp"
 
 int print_usage(const char* exeName) {
-    fprintf(stderr, "Usage: %s <hWnd> <dwThreadId> [-langid LANGID] [-guidProfile GUID]\n", exeName);
+    fprintf(stderr, "Usage: %s <hWnd> <dwThreadId> [-langid LANGID] [-guidProfile GUID] [-keyboardOpen|-keyboardClose] [-conversionMode <Alphanumeric|Native[,...]>]\n", exeName);
     return ERR_INVALID_ARGUMENTS;
 }
 
@@ -76,6 +76,8 @@ int main(int argc, const char* argv[]) {
         if (pSharedData == NULL) {
             LOG_ERROR("MapViewOfFile() failed with 0x%lx\n", GetLastError());
             err = ERR_MAP_VIEW_OF_FILE;
+        } else {
+            new (pSharedData) SharedData();
         }
     }
 
@@ -127,8 +129,6 @@ int main(int argc, const char* argv[]) {
         pSharedData->hForegroundWindow = hForegroundWindow;
         pSharedData->dwThreadId = dwThreadId;
         pSharedData->uMsg = uMsg;
-        pSharedData->langid = 0;
-        pSharedData->guidProfile = GUID_NULL;
 
         if (args.langid) {
             if (args.langid[0] == '0' && (args.langid[1] == 'x' || args.langid[1] == 'X')) {
@@ -137,7 +137,6 @@ int main(int argc, const char* argv[]) {
                 pSharedData->langid = (LANGID)std::strtoul(args.langid, NULL, 10);
             }
         }
-
     }
 
     if (args.guidProfile) {
@@ -149,11 +148,32 @@ int main(int argc, const char* argv[]) {
         }
         if (!err) {
             MultiByteToWideChar(CP_ACP, 0, args.guidProfile, -1, wszguidProfile, wideSize);
-            HRESULT hr = CLSIDFromString(wszguidProfile, &pSharedData->guidProfile);
+            pSharedData->guidProfile.emplace();
+            HRESULT hr = CLSIDFromString(wszguidProfile, &*pSharedData->guidProfile);
             if (FAILED(hr)) {
                 LOG_ERROR("CLSIDFromString(\"%s\") failed with 0x%lx\n", args.guidProfile, hr);
                 err = ERR_CLSID_FROM_STRING;
             }
+        }
+    }
+
+    if (args.keyboardOpenClose) {
+        pSharedData->keyboardOpenClose = *args.keyboardOpenClose;
+    }
+
+    if (args.conversionMode) {
+        const char* mode = strtok((char*)args.conversionMode, ",");
+        while (mode != NULL && !err) {
+            if (strcmp(mode, "AlphaNumeric") == 0) {
+                pSharedData->conversionModeNative = false;
+            } else if (strcmp(mode, "Native") == 0) {
+                pSharedData->conversionModeNative = true;
+            } else {
+                pSharedData->conversionModeNative = std::nullopt;
+                LOG_ERROR("Invalid conversion mode: %s\n", mode);
+                err = ERR_INVALID_ARGUMENTS;
+            }
+            mode = strtok(NULL, ",");
         }
     }
 

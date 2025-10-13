@@ -1,16 +1,29 @@
 #ifndef SHARED_DATA_HPP
 #define SHARED_DATA_HPP
 
+#include <optional>
 #include <windows.h>
 #include <msctf.h>
 
-typedef struct {
-    HWND    hForegroundWindow;
-    DWORD   dwThreadId; 
-    UINT    uMsg;
-    LANGID  langid;
-    GUID    guidProfile;
-} SharedData;
+struct SharedData {
+    HWND                    hForegroundWindow;
+    DWORD                   dwThreadId; 
+    UINT                    uMsg;
+    std::optional<LANGID>   langid;
+    std::optional<GUID>     guidProfile;
+    std::optional<bool>     keyboardOpenClose;
+    std::optional<bool>     conversionModeNative;
+
+    SharedData() :
+        hForegroundWindow(NULL),
+        dwThreadId(0),
+        uMsg(0),
+        langid(),
+        guidProfile(),
+        keyboardOpenClose(),
+        conversionModeNative()
+    {}
+};
 
 #define SHARED_DATA_NAME "Local\\IMControlSharedData"
 

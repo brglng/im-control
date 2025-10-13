@@ -4,19 +4,23 @@ Yet another [`im-select`](https://github.com/daipeihust/im-select) implementatio
 
 另一个 Windows 上的 [`im-select`](https://github.com/daipeihust/im-select) 实现。
 
-Advantages over `im-select` 相对于 `im-select` 的优势 :
-- Works for nearly all kinds of windows, including console window and UWP windows.
-  支持几乎所有类型的窗口，包括控制台窗口和 UWP 窗口。
-- Allows for switching IM by TIP's GUID, while `im-select` only switches languages.
-  允许通过输入法（即 TIP, 文本输入处理器）的 GUID 切换输入法，而 `im-select` 只能切换语言。
-- Allows for setting compartments, including:
-  允许设置输入法的区段（compartments），包括：
-  - keyboard on/off state (e.g. English/Chinese mode for Chinese IMEs or English/Kana mode for Japanese IMEs).
-    开关状态（例如中文输入法的英文/中文模式或日语输入法的英文/假名模式）。
-  - conversion mode (e.g. alphanumeric/native mode).
-    转换模式（例如英文/本地模式）。
+Advantages over `im-select`:
 
-** How It Works 工作原理 **
+- Works for nearly all kinds of windows, including console window and UWP windows.
+- Allows for switching IM by TIP's GUID, while `im-select` only switches languages.
+- Allows for setting compartments, including:
+  - keyboard on/off state (e.g. English/Chinese mode for Chinese IMEs or English/Kana mode for Japanese IMEs).
+  - conversion mode (e.g. alphanumeric/native mode).
+
+相对于 `im-select` 的优势 :
+
+- 支持几乎所有类型的窗口，包括控制台窗口和 UWP 窗口。
+- 允许通过输入法（即 TIP, 文本输入处理器）的 GUID 切换输入法，而 `im-select` 只能切换语言。
+- 允许设置输入法的区段（compartments），包括：
+  - 开关状态（例如中文输入法的英文/中文模式或日语输入法的英文/假名模式）。
+  - 转换模式（例如英文/本地模式）。
+
+## How It Works 工作原理
 
 `im-select` uses `ActivateKeyboardLayout` to switch keyboard layouts (languages), which not work for some kinds of windows, e.g. console windows and UWP windows.
 
@@ -28,7 +32,7 @@ On modern Windows, input methods are managed by the Text Services Framework (TSF
 
 However, TSF requires the caller to be in the same thread as the target window. To make it work, `im-control` injects a DLL into the target process by injecting a window procedure using `SetWindowsHookEx`, and then sends a window message to the injected window to execute the profile switching code. The parameters are passed through shared memory to the target window.
 
-然而，TSF 要求调用者与目标窗口在同一线程中。为了使其工作，`im-control` 通过使用 `SetWindowsHookEx` 将将 DLL 中的窗口过程注入目标进程，然后向被注入的窗口发送一个窗口消息以执行 TIP 切换。参数则通过共享内存传递给目标窗口。
+然而，TSF 要求调用者与目标窗口在同一线程中。为了使其工作，`im-control` 通过使用 `SetWindowsHookEx` 将 DLL 中的窗口过程注入目标进程，然后向被注入的窗口发送一个窗口消息以执行 TIP 切换。参数则通过共享内存传递给目标窗口。
 
 Using this approach, `im-control` can call all TSF methods on the target window, e.g., `ITfCompartment::SetValue`, is used to set compartments.
 

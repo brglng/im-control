@@ -119,3 +119,11 @@ Get current IM (WIP):
 ```bash
 im-control
 ```
+
+## History 历史
+
+### 2025-10-14: v0.1.0
+
+Initial release.
+
+第一个版本。

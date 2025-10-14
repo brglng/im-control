@@ -20,19 +20,16 @@
 
 使用这种方法，`im-control` 可以在目标窗口上调用所有 TSF 方法，例如用于设置区段的 `ITfCompartment::SetValue`。
 
-## 编译
+## 编译与安装
 
 请确保你已经安装了 CMake 和 Visual Studio。
 
 ```bash
 cmake -S . -B build -G "Visual Studio 17 2022"
 cmake --build build --config RelWithDebInfo
-```
 
-## 安装
-
-```bash
-cmake --install build --config RelWithDebInfo
+# 将输出的二进制文件放在 `bin` 目录下
+cmake --install build --prefix bin --config RelWithDebInfo
 ```
 
 ## 用法

@@ -22,22 +22,19 @@ However, TSF requires the caller to be in the same thread as the target window. 
 
 Using this approach, `im-control` can call all TSF methods on the target window, e.g., `ITfCompartment::SetValue`, is used to set compartments.
 
-## 编译
+## Build and Install
 
 Make sure you have CMake and Visual Studio installed.
 
 ```bash
 cmake -S . -B build -G "Visual Studio 17 2022"
 cmake --build build --config RelWithDebInfo
+
+# place the output binaries in `bin` directory
+cmake --install build --prefix bin --config RelWithDebInfo
 ```
 
-## 安装
-
-```bash
-cmake --install build --config RelWithDebInfo
-```
-
-## 用法
+## Usage
 
 Before running, please make sure the following files are in the same directory:
 
@@ -86,7 +83,7 @@ Get current IM (WIP)
 im-control
 ```
 
-## History 历史
+## History
 
 ### v0.1.0 (2025/10/14)
 

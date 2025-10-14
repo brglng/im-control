@@ -57,7 +57,7 @@ im-control -guidProfile {81D4E9C9-1D3B-41BC-9E6C-4B40BF79E35E}
 im-control -guidProfile {A3F4CDED-B1E9-41EE-9CA6-7B4D0DE6CB0A}
 ```
 
-Set keyboard on/off state (for Chinese IMEs, it's English/Chinese mode):
+Set keyboard on/off state (for Chinese IMEs, it sets Chinese/English mode):
 
 ```bash
 im-control -keyboardOpen

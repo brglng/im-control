@@ -208,13 +208,12 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
 }
 
 INT APIENTRY DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
-    HRESULT hr = S_OK;
     switch (fdwReason) {
         case DLL_PROCESS_ATTACH:
 #ifdef _WIN64
-            log_init("hook64");
+            logInit("hook64");
 #else
-            log_init("hook32");
+            logInit("hook32");
 #endif
             g_hMapFile = OpenFileMapping(FILE_MAP_ALL_ACCESS, FALSE, SHARED_DATA_NAME);
             if (g_hMapFile == NULL) {

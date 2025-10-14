@@ -7,10 +7,10 @@
 #include "log.hpp"
 #include "version.hpp"
 
-int print_usage(const char* exeName) {
-    fprintf(stderr, "Usage: %s [-langid LANGID] [-guidProfile GUID] [-keyboardOpen|-keyboardClose] [-conversionMode <AlphaNumeric|Native[,...]>]\n", exeName);
-    fprintf(stderr, "       %s -l\n", exeName);
-    fprintf(stderr, "       %s\n", exeName);
+int printUsage(const char* exeName) {
+    printf("Usage: %s [LANGID-{GUID}] [-k|--keyboard <open|close>] [-c|--conversion-mode <alphamumeric|native[,...]>]\n", exeName);
+    printf("       %s -l|--list\n", exeName);
+    printf("       %s\n", exeName);
     return ERR_INVALID_ARGUMENTS;
 }
 
@@ -19,20 +19,21 @@ int main(int argc, const char *argv[]) {
 
     CliArgs args;
     if (args.parse(argc - 1, argv + 1) != 0) {
-        return print_usage(argv[0]);
+        return printUsage(argv[0]);
     }
 
-    if (args.verb == VERB_PRINT_VERSION) {
+    if (args.verb == VERB_VERSION) {
         println("%s", VERSION_STRING);
         return 0;
     }
 
     SetLastError(0);
 
-    log_init("main");
+    logInit("main");
 
     HWND hForegroundWindow = GetForegroundWindow();
     if (hForegroundWindow == nullptr) {
+        eprintln("%s: GetForegroundWindow() failed with 0x%lx.\n", argv[0], GetLastError());
         LOG_ERROR("GetForegroundWindow() failed with 0x%lx\n", GetLastError());
         err = ERR_GET_FOREGROUND_WINDOW;
     }
@@ -43,6 +44,7 @@ int main(int argc, const char *argv[]) {
         // Get the thread ID of the foreground window.
         dwThreadId = GetWindowThreadProcessId(hForegroundWindow, &dwProcessId);
         if (dwThreadId == 0) {
+            eprintln("%s: GetWindowThreadProcessId() failed with 0x%lx.\n", argv[0], GetLastError());
 	        LOG_ERROR("GetWindowThreadProcessId() failed with 0x%lx\n", GetLastError());
             err = ERR_GET_WINDOW_THREAD_PROCESS_ID;
         }
@@ -52,6 +54,7 @@ int main(int argc, const char *argv[]) {
     if (!err) {
         hForegroundProcess = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, dwProcessId);
         if (!hForegroundProcess) {
+            eprintln("%s: OpenProcess() failed with 0x%lx.\n", argv[0], GetLastError());
 	        LOG_ERROR("OpenProcess() failed with 0x%lx\n", GetLastError());
             err = ERR_OPEN_PROCESS;
         }
@@ -60,6 +63,7 @@ int main(int argc, const char *argv[]) {
     BOOL isWow64 = FALSE;
     if (!err) {
         if (!IsWow64Process(hForegroundProcess, &isWow64)) {
+            eprintln("%s: IsWow64Process() failed with 0x%lx.\n", argv[0], GetLastError());
             LOG_ERROR("IsWow64Process() failed with 0x%lx\n", GetLastError());
             err = ERR_IS_WOW64_PROCESS;
         }
@@ -74,6 +78,7 @@ int main(int argc, const char *argv[]) {
         injectorPath.resize(65536);
         injectorPathBytes = GetModuleFileNameA(NULL, &injectorPath[0], (DWORD)injectorPath.size());
         if (injectorPathBytes == 0) {
+            eprintln("%s: GetModuleFileName() failed with 0x%lx.\n", argv[0], GetLastError());
             LOG_ERROR("GetModuleFileName() failed with 0x%lx\n", GetLastError());
             err = ERR_GET_MODULE_FILE_NAME;
         }
@@ -101,23 +106,20 @@ int main(int argc, const char *argv[]) {
         commandLine += std::to_string((uintptr_t)hForegroundWindow);
         commandLine += " ";
         commandLine += std::to_string(dwThreadId);
-        if (args.langid) {
-            commandLine += " -langid ";
-            commandLine += args.langid;
-        }
-        if (args.guidProfile) {
-            commandLine += " -guidProfile ";
-            commandLine += args.guidProfile;
+        if (args.id) {
+            commandLine += " ";
+            commandLine += args.id;
         }
         if (args.keyboardOpenClose) {
+            commandLine += " -k ";
             if (*args.keyboardOpenClose) {
-                commandLine += " -keyboardOpen";
+                commandLine += "open";
             } else {
-                commandLine += " -keyboardClose";
+                commandLine += "close";
             }
         }
         if (args.conversionMode) {
-            commandLine += " -conversionMode ";
+            commandLine += " -c ";
             commandLine += args.conversionMode;
         }
         commandLine.reserve(65536);
@@ -132,6 +134,7 @@ int main(int argc, const char *argv[]) {
                             NULL,
                             &si,
                             &pi)) {
+            eprintln("%s: CreateProcessA(\"%s\") failed with 0x%lx.\n", argv[0], injectorPath.c_str(), GetLastError());
             LOG_ERROR("CreateProcessA(\"%s\") failed with 0x%lx\n", injectorPath.c_str(), GetLastError());
             err = ERR_CREATE_PROCESS;
         }
@@ -139,6 +142,7 @@ int main(int argc, const char *argv[]) {
 
     if (!err) {
         if (WaitForSingleObject(pi.hProcess, INFINITE) == WAIT_FAILED) {
+            eprintln("%s: WaitForSingleObject() failed with 0x%lx.\n", argv[0], GetLastError());
             LOG_ERROR("WaitForSingleObject() failed with 0x%lx\n", GetLastError());
             err = ERR_WAIT_FOR_SINGLE_OBJECT;
         }
@@ -148,6 +152,7 @@ int main(int argc, const char *argv[]) {
         DWORD exitCode = 0;
         if (GetExitCodeProcess(pi.hProcess, &exitCode)) {
             if (exitCode != 0) {
+                eprintln("%s: injector exited with code %lu.\n", argv[0], exitCode);
                 LOG_ERROR("injector exited with code %lu\n", exitCode);
                 err = (int)exitCode;
             }

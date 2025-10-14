@@ -59,7 +59,7 @@ public:
 static std::once_flag log_init_flag{};
 static LogFile log_file;
 
-void log_init(const char* name) {
+void logInit(const char* name) {
     std::call_once(log_init_flag, [name]() {
         log_file.init(name);
     });

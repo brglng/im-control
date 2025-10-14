@@ -22,7 +22,7 @@ inline constexpr const char* level_to_string(LogLevel level) {
     }
 }
 
-void log_init(const char* name);
+void logInit(const char* name);
 void log(LogLevel level, const char* format, ...);
 
 #define LOG(file, line, func, level, format, ...) do { \

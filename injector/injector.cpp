@@ -9,29 +9,25 @@
 #include "log.hpp"
 #include "shared_data.hpp"
 
-int print_usage(const char* exeName) {
-    println("Usage: %s <hWnd> <dwThreadId> [-langid LANGID] [-guidProfile GUID] [-keyboardOpen|-keyboardClose] [-conversionMode <Alphanumeric|Native[,...]>]\n", exeName);
+int printUsage(const char* exeName) {
+    println("Usage: %s <hWnd> <dwThreadId> [LANGID,GUID] [-k|--keyboard <open|close>] [-c|--conversion-mode <alphanumeric|native[,...]>]\n", exeName);
     return ERR_INVALID_ARGUMENTS;
 }
 
 int main(int argc, const char* argv[]) {
     int err = OK;
 
-    if (argc < 3) {
-        return print_usage(argv[0]);
-    }
-
     CliArgs args;
     if (args.parse(argc - 3, argv + 3) != 0) {
-        return print_usage(argv[0]);
+        return printUsage(argv[0]);
     }
 
     SetLastError(0);
 
 #ifdef _WIN64
-    log_init("injector64");
+    logInit("injector64");
 #else
-    log_init("injector32");
+    logInit("injector32");
 #endif
 
     // Open shared memory for data sharing, and also for ensuring only one instance is running.
@@ -42,8 +38,8 @@ int main(int argc, const char* argv[]) {
                                         sizeof(SharedData),
                                         SHARED_DATA_NAME);
     if (hMapFile == NULL) {
-        LOG_ERROR("CreateFileMapping failed with 0x%lx\n", GetLastError());
         eprintln("%s: CreateFileMapping failed with 0x%lx. Maybe another process is running.\n", argv[0], GetLastError());
+        LOG_ERROR("CreateFileMapping failed with 0x%lx\n", GetLastError());
         err = ERR_CREATE_FILE_MAPPING;
     }
     if (!err) {
@@ -61,8 +57,8 @@ int main(int argc, const char* argv[]) {
         // Register a message to be used for the hook.
         uMsg = RegisterWindowMessage("IMControlWndMsg");
         if (uMsg == 0) {
-            LOG_ERROR("RegisterWindowMessage(\"IMControlWndMsg\") failed with 0x%lx\n", GetLastError());
             eprintln("%s: RegisterWindowMessage(\"IMControlWndMsg\") failed with 0x%lx.\n", argv[0], GetLastError());
+            LOG_ERROR("RegisterWindowMessage(\"IMControlWndMsg\") failed with 0x%lx\n", GetLastError());
             err = ERR_REGISTER_WINDOW_MESSAGE;
         }
     }
@@ -128,8 +124,6 @@ int main(int argc, const char* argv[]) {
         }
     }
 
-    LPOLESTR wszguidProfile = nullptr;
-    int wideSize = 0;
     if (!err) {
         // Initialize the shared data structure.
         pSharedData->hForegroundWindow = hForegroundWindow;
@@ -137,30 +131,52 @@ int main(int argc, const char* argv[]) {
         pSharedData->uMsg = uMsg;
         pSharedData->verb = args.verb;
 
-        if (args.langid) {
-            if (args.langid[0] == '0' && (args.langid[1] == 'x' || args.langid[1] == 'X')) {
-                pSharedData->langid = (LANGID)std::strtoul(args.langid + 2, NULL, 16);
-            } else {
-                pSharedData->langid = (LANGID)std::strtoul(args.langid, NULL, 10);
-            }
-        }
-    }
+        if (args.id) {
+            const char* langidStr = nullptr;
+            const char* guidStr = nullptr;
 
-    if (args.guidProfile) {
-        wideSize = MultiByteToWideChar(CP_ACP, 0, args.guidProfile, -1, NULL, 0);
-        if (wideSize > 0) {
-            wszguidProfile = (LPOLESTR)CoTaskMemAlloc(wideSize * sizeof(WCHAR));
-            if (!wszguidProfile)
-                err = ERR_OUT_OF_MEMORY;
-        }
-        if (!err) {
-            MultiByteToWideChar(CP_ACP, 0, args.guidProfile, -1, wszguidProfile, wideSize);
-            pSharedData->guidProfile.emplace();
-            HRESULT hr = CLSIDFromString(wszguidProfile, &*pSharedData->guidProfile);
-            if (FAILED(hr)) {
-                LOG_ERROR("CLSIDFromString(\"%s\") failed with 0x%lx\n", args.guidProfile, hr);
-                eprintln("%s: CLSIDFromString(\"%s\") failed with 0x%lx.\n", argv[0], args.guidProfile, hr);
-                err = ERR_CLSID_FROM_STRING;
+            const char* dash = strchr(args.id, '-');
+            if (!dash) {
+                eprintln("%s: Invalid id format: %s\n", argv[0], args.id);
+                LOG_ERROR("Invalid id format: %s\n", args.id);
+                err = ERR_INVALID_ARGUMENTS;
+            }
+
+            if (!err) {
+                langidStr = args.id;
+                guidStr = dash + 1;
+                pSharedData->langid = (LANGID)std::strtoul(langidStr, NULL, 16);
+                if (pSharedData->langid == 0) {
+                    LOG_ERROR("Invalid LANGID: %s\n", langidStr);
+                    eprintln("%s: Invalid LANGID: %s\n", argv[0], langidStr);
+                    err = ERR_INVALID_ARGUMENTS;
+                }
+            }
+
+            LPOLESTR wszGuid = nullptr;
+            int wideSize = 0;
+            if (!err) {
+                wideSize = MultiByteToWideChar(CP_ACP, 0, guidStr, -1, NULL, 0);
+                if (wideSize > 0) {
+                    wszGuid = (LPOLESTR)CoTaskMemAlloc(wideSize * sizeof(WCHAR));
+                    if (!wszGuid)
+                        err = ERR_OUT_OF_MEMORY;
+                }
+            }
+
+            if (!err) {
+                MultiByteToWideChar(CP_ACP, 0,  guidStr, -1, wszGuid, wideSize);
+                pSharedData->guidProfile.emplace();
+                HRESULT hr = CLSIDFromString(wszGuid, &*pSharedData->guidProfile);
+                if (FAILED(hr)) {
+                    LOG_ERROR("CLSIDFromString(\"%s\") failed with 0x%lx\n", guidStr, hr);
+                    eprintln("%s: CLSIDFromString(\"%s\") failed with 0x%lx.\n", argv[0], guidStr, hr);
+                    err = ERR_CLSID_FROM_STRING;
+                }
+            }
+
+            if (wszGuid != nullptr) {
+                CoTaskMemFree(wszGuid);
             }
         }
     }
@@ -172,9 +188,9 @@ int main(int argc, const char* argv[]) {
     if (args.conversionMode) {
         const char* mode = strtok((char*)args.conversionMode, ",");
         while (mode != NULL && !err) {
-            if (strcmp(mode, "AlphaNumeric") == 0) {
+            if (strcmp(mode, "alphanumeric") == 0) {
                 pSharedData->conversionModeNative = false;
-            } else if (strcmp(mode, "Native") == 0) {
+            } else if (strcmp(mode, "native") == 0) {
                 pSharedData->conversionModeNative = true;
             } else {
                 pSharedData->conversionModeNative = std::nullopt;
@@ -230,7 +246,7 @@ int main(int argc, const char* argv[]) {
 
     if (!err) {
         if (args.verb == VERB_CURRENT) {
-            println("{\"langid\":\"0x%04x\",\"guidProfile\":\"{%08lx-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x}\"}",
+            println("%04x-{%08lx-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
                 *pSharedData->langid,
                 pSharedData->guidProfile->Data1,
                 pSharedData->guidProfile->Data2,
@@ -243,9 +259,6 @@ int main(int argc, const char* argv[]) {
         }
     }
 
-    if (wszguidProfile != nullptr) {
-        CoTaskMemFree(wszguidProfile);
-    }
     if (hHook != NULL) {
         UnhookWindowsHookEx(hHook);
     }

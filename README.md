@@ -36,6 +36,13 @@ cmake --install build --prefix bin --config RelWithDebInfo
 
 ## Usage
 
+```
+im-control
+im-control [LANGID-{GUID}] [-k|--keyboard <open|close>] [-c|--conversion-mode <alphamumeric|native[,...]>]
+im-control -l|--list
+im-control -v|--version
+```
+
 Before running, please make sure the following files are in the same directory:
 
 - `im-control.exe`

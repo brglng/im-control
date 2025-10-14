@@ -42,7 +42,7 @@ cmake --install build --prefix bin --config RelWithDebInfo
 - `im-control-hook-32.dll`
 - `im-control-hook-64.dll`
 
-使用语言 ID 和/或 TIP 的 GUID 切换输入法：
+使用 `LANGID-{GUID}` 切换输入法：
 
 ```bash
 # 英语（美国）

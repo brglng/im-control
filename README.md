@@ -44,7 +44,7 @@ Before running, please make sure the following files are in the same directory:
 - `im-control-hook-32.dll`
 - `im-control-hook-64.dll`
 
-Switch IM by langid and/or TIP's GUID:
+Switch IM by `LANGID-{GUID}`:
 
 ```bash
 # English (United States)

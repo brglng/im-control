@@ -48,33 +48,33 @@ Switch IM by langid and/or TIP's GUID:
 
 ```bash
 # English (United States)
-im-control -langid 0x0409
+im-control 0409-{00000000-0000-0000-0000-000000000000}
 
 # Chinese (Simplified, China) - Microsoft Pinyin
-im-control -guidProfile {81D4E9C9-1D3B-41BC-9E6C-4B40BF79E35E}
+im-control 0804-{81D4E9C9-1D3B-41BC-9E6C-4B40BF79E35E}
 
 # Weasel (RIME)
-im-control -guidProfile {A3F4CDED-B1E9-41EE-9CA6-7B4D0DE6CB0A}
+im-control 0804-{A3F4CDED-B1E9-41EE-9CA6-7B4D0DE6CB0A}
 ```
 
 Set keyboard on/off state (for Chinese IMEs, it sets Chinese/English mode):
 
 ```bash
-im-control -keyboardOpen
-im-control -keyboardClose
+im-control -k open
+im-control -k close
 ```
 
 Or combine them:
 
 ```bash
 # Switch to Weasel and turn on Chinese input mode
-im-control -langid 0x0804 -guidProfile {A3F4CDED-B1E9-41EE-9CA6-7B4D0DE6CB0A} -keyboardOpen
+im-control 0804-{A3F4CDED-B1E9-41EE-9CA6-7B4D0DE6CB0A} -k open
 ```
 
 List all IMs (WIP):
 
 ```bash
-im-control -list
+im-control -l
 ```
 
 Get current IM:
@@ -83,13 +83,17 @@ Get current IM:
 im-control
 ```
 
-Output:
+Example output:
 
 ```
-{"langid":"0x0804","guidProfile":"{81d4e9c9-1d3b-41bc-9e6c-4b40bf79e35e}"}
+0804-{81d4e9c9-1d3b-41bc-9e6c-4b40bf79e35e}
 ```
 
 ## History
+
+### v0.3.0 (2025/10/14)
+
+- Change command line syntax to be more compatible with existing tools.
 
 ### v0.2.0 (2025/10/14)
 

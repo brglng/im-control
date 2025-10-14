@@ -46,33 +46,33 @@ cmake --install build --prefix bin --config RelWithDebInfo
 
 ```bash
 # 英语（美国）
-im-control -langid 0x0409
+im-control 0409-{00000000-0000-0000-0000-000000000000}
 
 # 中文（简体，中国）- 微软拼音
-im-control -guidProfile {81D4E9C9-1D3B-41BC-9E6C-4B40BF79E35E}
+im-control 0804-{81D4E9C9-1D3B-41BC-9E6C-4B40BF79E35E}
 
 # 小狼毫
-im-control -guidProfile {A3F4CDED-B1E9-41EE-9CA6-7B4D0DE6CB0A}
+im-control 0804-{A3F4CDED-B1E9-41EE-9CA6-7B4D0DE6CB0A}
 ```
 
 设置键盘开关（对于中文输入法，此即中/英模式）：
 
 ```bash
-im-control -keyboardOpen
-im-control -keyboardClose
+im-control -k open
+im-control -k close
 ```
 
 或者将以上组合起来：
 
 ```bash
 # 切换到小狼毫并开启中文输入模式
-im-control -langid 0x0804 -guidProfile {A3F4CDED-B1E9-41EE-9CA6-7B4D0DE6CB0A} -keyboardOpen
+im-control 0804-{A3F4CDED-B1E9-41EE-9CA6-7B4D0DE6CB0A} -k open
 ```
 
 列出所有输入法（开发中）：
 
 ```bash
-im-control -list
+im-control -l
 ```
 
 获取当前输入法：
@@ -84,10 +84,14 @@ im-control
 输出示例：
 
 ```
-{"langid":"0x0804","guidProfile":"{81d4e9c9-1d3b-41bc-9e6c-4b40bf79e35e}"}
+0804-{81d4e9c9-1d3b-41bc-9e6c-4b40bf79e35e}
 ```
 
 ## 版本历史
+
+### v0.3.0 (2025/10/14)
+
+- 改变命令行语法以更兼容现有工具。
 
 ### v0.2.0 (2025/10/14)
 

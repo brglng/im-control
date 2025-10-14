@@ -5,7 +5,7 @@
 相对于 `im-select` 的优势 :
 
 - 支持几乎所有类型的窗口，包括控制台窗口和 UWP 窗口。
-- 允许通过输入法（即 TIP, 文本输入处理器）的 GUID 切换输入法，而 `im-select` 只能切换语言。
+- 允许通过输入法（即 TIP，文本输入处理器）的 GUID 切换输入法，而 `im-select` 只能切换语言。
 - 允许设置输入法的区段（compartments），包括：
   - 开关状态（例如中文输入法的中文/英文模式或日语输入法的假名/英文模式）。
   - 转换模式（例如英文/本地模式）。
@@ -14,7 +14,7 @@
 
 `im-select` 使用 `ActivateKeyboardLayout` 来切换键盘布局（语言），但这对某些类型的窗口不起作用，如控制台窗口和 UWP 窗口。
 
-在现代 Windows 上，输入法由文本服务框架（TSF）管理。每个输入法由一个文本输入处理器（TIP）表示，该处理器由一个全局唯一标识符（GUID）标识。可以使用 `ITfInputProcessorProfileMgr::ActivateProfile` 方法更改活动 TIP，该方法适用于几乎所有类型的窗口。
+在现代 Windows 上，输入法由文本服务框架（TSF）管理。每个输入法由一个文本输入处理器（TIP）表示，并由一个全局唯一标识符（GUID）标识。可以使用 `ITfInputProcessorProfileMgr::ActivateProfile` 方法更改活动 TIP，该方法适用于几乎所有类型的窗口。
 
 然而，TSF 要求调用者与目标窗口在同一线程中。为了使其工作，`im-control` 使用 `SetWindowsHookEx` 将 DLL 中的窗口过程注入目标进程，然后向被注入的窗口发送一个窗口消息以执行 TIP 切换。参数则通过共享内存传递给目标窗口。
 

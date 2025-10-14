@@ -77,7 +77,7 @@ List all IMs (WIP):
 im-control -list
 ```
 
-Get current IM
+Get current IM:
 
 ```bash
 im-control
@@ -86,7 +86,7 @@ im-control
 Output:
 
 ```
-{"langid": "0x0804","guidProfile":"{81d4e9c9-1d3b-41bc-9e6c-4b40bf79e35e}"}
+{"langid":"0x0804","guidProfile":"{81d4e9c9-1d3b-41bc-9e6c-4b40bf79e35e}"}
 ```
 
 ## History

@@ -84,7 +84,7 @@ im-control
 输出示例：
 
 ```
-{"langid": "0x0804","guidProfile":"{81d4e9c9-1d3b-41bc-9e6c-4b40bf79e35e}"}
+{"langid":"0x0804","guidProfile":"{81d4e9c9-1d3b-41bc-9e6c-4b40bf79e35e}"}
 ```
 
 ## 版本历史

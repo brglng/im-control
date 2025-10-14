@@ -230,7 +230,7 @@ int main(int argc, const char* argv[]) {
 
     if (!err) {
         if (args.verb == VERB_CURRENT) {
-            println("{\"langid\": \"0x%04x\",\"guidProfile\":\"{%08lx-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x}\"}",
+            println("{\"langid\":\"0x%04x\",\"guidProfile\":\"{%08lx-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x}\"}",
                 *pSharedData->langid,
                 pSharedData->guidProfile->Data1,
                 pSharedData->guidProfile->Data2,

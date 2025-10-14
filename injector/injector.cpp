@@ -10,7 +10,7 @@
 #include "shared_data.hpp"
 
 int print_usage(const char* exeName) {
-    fprintf(stderr, "Usage: %s <hWnd> <dwThreadId> [-langid LANGID] [-guidProfile GUID] [-keyboardOpen|-keyboardClose] [-conversionMode <Alphanumeric|Native[,...]>]\n", exeName);
+    println("Usage: %s <hWnd> <dwThreadId> [-langid LANGID] [-guidProfile GUID] [-keyboardOpen|-keyboardClose] [-conversionMode <Alphanumeric|Native[,...]>]\n", exeName);
     return ERR_INVALID_ARGUMENTS;
 }
 
@@ -22,7 +22,7 @@ int main(int argc, const char* argv[]) {
     }
 
     CliArgs args;
-    if (parse_args(argc - 3, argv + 3, &args) != 0) {
+    if (args.parse(argc - 3, argv + 3) != 0) {
         return print_usage(argv[0]);
     }
 
@@ -43,6 +43,7 @@ int main(int argc, const char* argv[]) {
                                         SHARED_DATA_NAME);
     if (hMapFile == NULL) {
         LOG_ERROR("CreateFileMapping failed with 0x%lx\n", GetLastError());
+        eprintln("%s: CreateFileMapping failed with 0x%lx. Maybe another process is running.\n", argv[0], GetLastError());
         err = ERR_CREATE_FILE_MAPPING;
     }
     if (!err) {
@@ -61,6 +62,7 @@ int main(int argc, const char* argv[]) {
         uMsg = RegisterWindowMessage("IMControlWndMsg");
         if (uMsg == 0) {
             LOG_ERROR("RegisterWindowMessage(\"IMControlWndMsg\") failed with 0x%lx\n", GetLastError());
+            eprintln("%s: RegisterWindowMessage(\"IMControlWndMsg\") failed with 0x%lx.\n", argv[0], GetLastError());
             err = ERR_REGISTER_WINDOW_MESSAGE;
         }
     }
@@ -75,6 +77,7 @@ int main(int argc, const char* argv[]) {
                                                  sizeof(SharedData));
         if (pSharedData == NULL) {
             LOG_ERROR("MapViewOfFile() failed with 0x%lx\n", GetLastError());
+            eprintln("%s: MapViewOfFile() failed with 0x%lx.\n", argv[0], GetLastError());
             err = ERR_MAP_VIEW_OF_FILE;
         } else {
             new (pSharedData) SharedData();
@@ -88,6 +91,7 @@ int main(int argc, const char* argv[]) {
         dllPathBytes = GetModuleFileNameA(NULL, &dllPath[0], (DWORD)dllPath.size());
         if (dllPathBytes == 0) {
             LOG_ERROR("GetModuleFileName() failed with 0x%lx\n", GetLastError());
+            eprintln("%s: GetModuleFileName() failed with 0x%lx.\n", argv[0], GetLastError());
             err = ERR_GET_MODULE_FILE_NAME;
         }
     }
@@ -109,6 +113,7 @@ int main(int argc, const char* argv[]) {
 #endif
         if (hDll == NULL) {
             LOG_ERROR("LoadLibrary(\"im-control-hook.dll\") failed with 0x%lx\n", GetLastError());
+            eprintln("%s: LoadLibrary(\"%s\") failed with 0x%lx.\n", argv[0], dllPath.c_str(), GetLastError());
             err = ERR_LOAD_LIBRARY;
         }
     }
@@ -118,6 +123,7 @@ int main(int argc, const char* argv[]) {
         hHookProc = (HOOKPROC)GetProcAddress(hDll, "IMControl_WndProcHook");
         if (hHookProc == NULL) {
             LOG_ERROR("GetProcAddress(\"IMControl_WndProcHook\") failed with 0x%lx\n", GetLastError());
+            eprintln("%s: GetProcAddress(\"IMControl_WndProcHook\") failed with 0x%lx.\n", argv[0], GetLastError());
             err = ERR_GET_PROC_ADDRESS;
         }
     }
@@ -129,6 +135,7 @@ int main(int argc, const char* argv[]) {
         pSharedData->hForegroundWindow = hForegroundWindow;
         pSharedData->dwThreadId = dwThreadId;
         pSharedData->uMsg = uMsg;
+        pSharedData->verb = args.verb;
 
         if (args.langid) {
             if (args.langid[0] == '0' && (args.langid[1] == 'x' || args.langid[1] == 'X')) {
@@ -152,6 +159,7 @@ int main(int argc, const char* argv[]) {
             HRESULT hr = CLSIDFromString(wszguidProfile, &*pSharedData->guidProfile);
             if (FAILED(hr)) {
                 LOG_ERROR("CLSIDFromString(\"%s\") failed with 0x%lx\n", args.guidProfile, hr);
+                eprintln("%s: CLSIDFromString(\"%s\") failed with 0x%lx.\n", argv[0], args.guidProfile, hr);
                 err = ERR_CLSID_FROM_STRING;
             }
         }
@@ -171,6 +179,7 @@ int main(int argc, const char* argv[]) {
             } else {
                 pSharedData->conversionModeNative = std::nullopt;
                 LOG_ERROR("Invalid conversion mode: %s\n", mode);
+                eprintln("%s: Invalid conversion mode: %s\n", argv[0], mode);
                 err = ERR_INVALID_ARGUMENTS;
             }
             mode = strtok(NULL, ",");
@@ -183,6 +192,7 @@ int main(int argc, const char* argv[]) {
         hHook = SetWindowsHookEx(WH_CALLWNDPROC, hHookProc, hDll, dwThreadId);
         if (hHook == NULL) {
             LOG_ERROR("SetWindowsHookEx() failed with 0x%lx\n", GetLastError());
+            eprintln("%s: SetWindowsHookEx() failed with 0x%lx.\n", argv[0], GetLastError());
             err = ERR_SET_WINDOWS_HOOK_EX;
         }
     }
@@ -202,16 +212,34 @@ int main(int argc, const char* argv[]) {
             DWORD dwError = GetLastError();
             if (dwError == WAIT_TIMEOUT) {
                 LOG_ERROR("SendMessageTimeout() timed out\n");
+                eprintln("%s: SendMessageTimeout() timed out.\n", argv[0]);
                 err = ERR_SEND_MESSAGE_TIMEOUT_TIMED_OUT;
             } else {
                 LOG_ERROR("SendMessageTimeout() failed with 0x%lx\n", dwError);
+                eprintln("%s: SendMessageTimeout() failed with 0x%lx.\n", argv[0], dwError);
                 err = ERR_SEND_MESSAGE_TIMEOUT_FAIL_AFTER_WAIT;
             }
         } else {
             if (dwResult != 0) {
-                LOG_ERROR("SendMessageTimeout() returned 0x%llx\n", dwResult);
+                LOG_ERROR("SendMessageTimeout() returned 0x%llx\n", (uint64_t)dwResult);
+                eprintln("%s: SendMessageTimeout() returned 0x%llx.\n", argv[0], (uint64_t)dwResult);
                 err = ERR_SEND_MESSAGE_TIMEOUT;
             }
+        }
+    }
+
+    if (!err) {
+        if (args.verb == VERB_CURRENT) {
+            println("{\"langid\": \"0x%04x\",\"guidProfile\":\"{%08lx-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x}\"}",
+                *pSharedData->langid,
+                pSharedData->guidProfile->Data1,
+                pSharedData->guidProfile->Data2,
+                pSharedData->guidProfile->Data3,
+                pSharedData->guidProfile->Data4[0], pSharedData->guidProfile->Data4[1],
+                pSharedData->guidProfile->Data4[2], pSharedData->guidProfile->Data4[3],
+                pSharedData->guidProfile->Data4[4], pSharedData->guidProfile->Data4[5],
+                pSharedData->guidProfile->Data4[6], pSharedData->guidProfile->Data4[7]
+            );
         }
     }
 

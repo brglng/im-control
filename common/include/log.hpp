@@ -1,6 +1,7 @@
 #ifndef LOG_HPP
 #define LOG_HPP
 
+#include <cstdio>
 #include <ctime>
 #include <windows.h>
 
@@ -32,12 +33,16 @@ void log(LogLevel level, const char* format, ...);
     strftime(timeBuffer, sizeof(timeBuffer), "%Y-%m-%d %H:%M:%S", &localTime); \
     DWORD processId = GetCurrentProcessId(); \
     DWORD threadId = GetCurrentThreadId(); \
-    log(level, "[%s][%lu][%lu][%s:%d:%s][%s] " format, timeBuffer, processId, threadId, file, line, func, level_to_string(level), ##__VA_ARGS__); \
+    const char* filename = strrchr(file, '\\') ? strrchr(file, '\\') + 1 : file; \
+    log(level, "[%s][%lu][%lu][%s:%d][%s][%s] " format, timeBuffer, processId, threadId, filename, line, func, level_to_string(level), ##__VA_ARGS__); \
 } while (0)
 
 #define LOG_DEBUG(format, ...) LOG(__FILE__, __LINE__, __FUNCTION__, LOG_LEVEL_DEBUG, format, ##__VA_ARGS__)
 #define LOG_INFO(format, ...)  LOG(__FILE__, __LINE__, __FUNCTION__, LOG_LEVEL_INFO,  format, ##__VA_ARGS__)
 #define LOG_WARN(format, ...)  LOG(__FILE__, __LINE__, __FUNCTION__, LOG_LEVEL_WARN,  format, ##__VA_ARGS__)
 #define LOG_ERROR(format, ...) LOG(__FILE__, __LINE__, __FUNCTION__, LOG_LEVEL_ERROR, format, ##__VA_ARGS__)
+
+#define println(format, ...) printf(format "\n", ##__VA_ARGS__)
+#define eprintln(format, ...) fprintf(stderr, format "\n", ##__VA_ARGS__)
 
 #endif /* LOG_HPP */

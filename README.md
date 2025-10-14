@@ -36,7 +36,7 @@ cmake --install build --prefix bin --config RelWithDebInfo
 
 ## Usage
 
-Before running, please make sure the following files are in the same directory
+Before running, please make sure the following files are in the same directory:
 
 - `im-control.exe`
 - `im-control-injector-32.dll`
@@ -44,7 +44,7 @@ Before running, please make sure the following files are in the same directory
 - `im-control-hook-32.dll`
 - `im-control-hook-64.dll`
 
-Switch IM by langid and/or TIP's GUID
+Switch IM by langid and/or TIP's GUID:
 
 ```bash
 # English (United States)
@@ -57,33 +57,44 @@ im-control -guidProfile {81D4E9C9-1D3B-41BC-9E6C-4B40BF79E35E}
 im-control -guidProfile {A3F4CDED-B1E9-41EE-9CA6-7B4D0DE6CB0A}
 ```
 
-Set keyboard on/off state (for Chinese IMEs, it sets Chinese/English mode)
+Set keyboard on/off state (for Chinese IMEs, it sets Chinese/English mode):
 
 ```bash
 im-control -keyboardOpen
 im-control -keyboardClose
 ```
 
-Or combine them
+Or combine them:
 
 ```bash
 # Switch to Weasel and turn on Chinese input mode
 im-control -langid 0x0804 -guidProfile {A3F4CDED-B1E9-41EE-9CA6-7B4D0DE6CB0A} -keyboardOpen
 ```
 
-List all IMs (WIP)
+List all IMs (WIP):
 
 ```bash
-im-control -l
+im-control -list
 ```
 
-Get current IM (WIP)
+Get current IM
 
 ```bash
 im-control
 ```
 
+Output:
+
+```
+{"langid": "0x0804","guidProfile":"{81d4e9c9-1d3b-41bc-9e6c-4b40bf79e35e}"}
+```
+
 ## History
+
+### v0.2.0 (2025/10/14)
+
+- Add implementation for getting current IM.
+- Add `-version` `--version` to show version information.
 
 ### v0.1.0 (2025/10/14)
 

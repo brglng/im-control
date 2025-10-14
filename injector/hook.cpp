@@ -12,7 +12,7 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
     if (nCode >= 0) {
         CWPSTRUCT* cwp = (CWPSTRUCT*)lParam;
         if (cwp != NULL && g_pSharedData && cwp->hwnd == g_pSharedData->hForegroundWindow && cwp->message == g_pSharedData->uMsg) {
-            LOG_INFO("WndProcHook: nCode=0x%x, hwnd=%p, message=0x%x\n", nCode, cwp->hwnd, cwp->message);
+            LOG_INFO("WndProcHook: nCode=0x%x, hwnd=%p, message=0x%x", nCode, cwp->hwnd, cwp->message);
             HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
             if (FAILED(hr)) {
 	            LOG_ERROR("ERROR: CoInitialize() failed with 0x%0lx", hr);
@@ -20,16 +20,34 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
             }
 
             bool bCOMInitializedByMe = (hr == S_OK);
+            ITfInputProcessorProfileMgr* pProfileMgr = NULL;
+            ITfThreadMgr* pThreadMgr = NULL;
+            ITfCompartmentMgr* pCompartmentMgr = nullptr;
 
-            if (g_pSharedData->langid.has_value() || g_pSharedData->guidProfile.has_value()) {
-                ITfInputProcessorProfileMgr* pProfileMgr = NULL;
+            if (SUCCEEDED(hr)) {
+                LOG_INFO("COM initialized");
                 hr = CoCreateInstance(CLSID_TF_InputProcessorProfiles,
                                       NULL,
                                       CLSCTX_INPROC_SERVER,
                                       IID_ITfInputProcessorProfileMgr,
                                       (void**)&pProfileMgr);
+            }
+
+            if (SUCCEEDED(hr)) {
+                if (g_pSharedData->verb == VERB_CURRENT) {
+                    TF_INPUTPROCESSORPROFILE profile;
+                    hr = pProfileMgr->GetActiveProfile(GUID_TFCAT_TIP_KEYBOARD, &profile);
+                    if (SUCCEEDED(hr)) {
+                        g_pSharedData->langid = profile.langid;
+                        g_pSharedData->guidProfile = profile.guidProfile;
+                    }
+                }
+            }
+
+            if ((g_pSharedData->verb == VERB_SWITCH || g_pSharedData->verb == VERB_LIST) &&
+                (g_pSharedData->langid.has_value() || g_pSharedData->guidProfile.has_value())) {
                 if (SUCCEEDED(hr)) {
-                    LOG_INFO("WndProcHook: pProfileMgr=%p\n", pProfileMgr);
+                    LOG_INFO("WndProcHook: pProfileMgr=%p", pProfileMgr);
                     IEnumTfInputProcessorProfiles* pEnum = nullptr;
                     hr = pProfileMgr->EnumProfiles(0, &pEnum);
                     if (SUCCEEDED(hr)) {
@@ -53,18 +71,14 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
                                     }
                                     break;
                                 } else if (IsEqualGUID(profile.guidProfile, *g_pSharedData->guidProfile)) {
-                                    LOG_INFO("guidProfile = {%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
+                                    LOG_INFO("guidProfile = {%08lx-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
                                              profile.guidProfile.Data1,
                                              profile.guidProfile.Data2,
                                              profile.guidProfile.Data3,
-                                             profile.guidProfile.Data4[0],
-                                             profile.guidProfile.Data4[1],
-                                             profile.guidProfile.Data4[2],
-                                             profile.guidProfile.Data4[3],
-                                             profile.guidProfile.Data4[4],
-                                             profile.guidProfile.Data4[5],
-                                             profile.guidProfile.Data4[6],
-                                             profile.guidProfile.Data4[7]);
+                                             profile.guidProfile.Data4[0], profile.guidProfile.Data4[1],
+                                             profile.guidProfile.Data4[2], profile.guidProfile.Data4[3],
+                                             profile.guidProfile.Data4[4], profile.guidProfile.Data4[5],
+                                             profile.guidProfile.Data4[6], profile.guidProfile.Data4[7]);
                                     hr = pProfileMgr->ActivateProfile(profile.dwProfileType,
                                                                       profile.langid,
                                                                       profile.clsid,
@@ -82,20 +96,17 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
                     } else {
                         LOG_ERROR("ERROR: EnumProfiles() failed with 0x%0lx", hr);
                     }
-                    pProfileMgr->Release();
                 } else {
                     LOG_ERROR("ERROR: CoCreateInstance(CLSID_TF_InputProcessorProfiles) failed with 0x%0lx", hr);
                 }
             }
 
-            if (g_pSharedData->keyboardOpenClose || g_pSharedData->conversionModeNative) {
-                ITfThreadMgr* pThreadMgr = NULL;
+            if ((g_pSharedData->verb == VERB_SWITCH) && (g_pSharedData->keyboardOpenClose || g_pSharedData->conversionModeNative)) {
                 hr = CoCreateInstance(CLSID_TF_ThreadMgr,
                                       NULL,
                                       CLSCTX_INPROC_SERVER,
                                       IID_ITfThreadMgr,
                                       (void**)&pThreadMgr);
-                ITfCompartmentMgr* pCompartmentMgr = nullptr;
                 if (SUCCEEDED(hr)) {
                     hr = pThreadMgr->QueryInterface(IID_ITfCompartmentMgr, (void**)&pCompartmentMgr);
                 } else {
@@ -175,15 +186,17 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
                 } else {
                     LOG_ERROR("ERROR: QueryInterface(IID_ITfCompartmentMgr) failed with 0x%0lx", hr);
                 }
-
-                if (pCompartmentMgr) {
-                    pCompartmentMgr->Release();
-                }
-                if (pThreadMgr) {
-                    pThreadMgr->Release();
-                }
             }
 
+            if (pCompartmentMgr) {
+                pCompartmentMgr->Release();
+            }
+            if (pThreadMgr) {
+                pThreadMgr->Release();
+            }
+            if (pProfileMgr) {
+                pProfileMgr->Release();
+            }
             if (bCOMInitializedByMe) {
                 CoUninitialize();
             }

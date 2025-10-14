@@ -5,6 +5,7 @@
 #include "argparse.hpp"
 #include "err.hpp"
 #include "log.hpp"
+#include "version.hpp"
 
 int print_usage(const char* exeName) {
     fprintf(stderr, "Usage: %s [-langid LANGID] [-guidProfile GUID] [-keyboardOpen|-keyboardClose] [-conversionMode <AlphaNumeric|Native[,...]>]\n", exeName);
@@ -17,8 +18,13 @@ int main(int argc, const char *argv[]) {
     int err = 0;
 
     CliArgs args;
-    if (parse_args(argc - 1, argv + 1, &args) != 0) {
+    if (args.parse(argc - 1, argv + 1) != 0) {
         return print_usage(argv[0]);
+    }
+
+    if (args.verb == VERB_PRINT_VERSION) {
+        println("%s", VERSION_STRING);
+        return 0;
     }
 
     SetLastError(0);

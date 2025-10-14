@@ -72,16 +72,27 @@ im-control -langid 0x0804 -guidProfile {A3F4CDED-B1E9-41EE-9CA6-7B4D0DE6CB0A} -k
 列出所有输入法（开发中）：
 
 ```bash
-im-control -l
+im-control -list
 ```
 
-获取当前输入法（开发中）：
+获取当前输入法：
 
 ```bash
 im-control
 ```
 
+输出示例：
+
+```
+{"langid": "0x0804","guidProfile":"{81d4e9c9-1d3b-41bc-9e6c-4b40bf79e35e}"}
+```
+
 ## 版本历史
+
+### v0.2.0 (2025/10/14)
+
+- 实现获取当前输入法功能。
+- 增加 `-version` `--version` 参数以显示版本信息。
 
 ### v0.1.0 (2025/10/14)
 

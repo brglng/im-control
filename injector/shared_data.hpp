@@ -4,11 +4,13 @@
 #include <optional>
 #include <windows.h>
 #include <msctf.h>
+#include "verb.hpp"
 
 struct SharedData {
     HWND                    hForegroundWindow;
     DWORD                   dwThreadId; 
     UINT                    uMsg;
+    Verb                    verb;
     std::optional<LANGID>   langid;
     std::optional<GUID>     guidProfile;
     std::optional<bool>     keyboardOpenClose;
@@ -18,6 +20,7 @@ struct SharedData {
         hForegroundWindow(NULL),
         dwThreadId(0),
         uMsg(0),
+        verb(VERB_CURRENT),
         langid(),
         guidProfile(),
         keyboardOpenClose(),

@@ -2,15 +2,18 @@
 #include "argparse.hpp"
 #include "err.hpp"
 
-int parse_args(int argc, const char *argv[], CliArgs* args) {
-    memset(args, 0, sizeof(CliArgs));
+int CliArgs::parse(int argc, const char *argv[]) {
+    if (argc == 0) {
+        return 0;
+    }
+    verb = VERB_SWITCH;
     for (int i = 0; i < argc; i++) {
         if (strcmp(argv[i], "-langid") == 0) {
             if (i + 1 < argc) {
                 if (argv[i + 1][0] == '-') {
                     return ERR_INVALID_ARGUMENTS;
                 }
-                args->langid = argv[i + 1];
+                langid = argv[i + 1];
                 i++;
             } else {
                 return ERR_INVALID_ARGUMENTS;
@@ -20,30 +23,35 @@ int parse_args(int argc, const char *argv[], CliArgs* args) {
                 if (argv[i + 1][0] == '-') {
                     return ERR_INVALID_ARGUMENTS;
                 }
-                args->guidProfile = argv[i + 1];
+                guidProfile = argv[i + 1];
                 i++;
             } else {
                 return ERR_INVALID_ARGUMENTS;
             }
         } else if (strcmp(argv[i], "-keyboardOpen") == 0) {
-            args->keyboardOpenClose = true;
+            keyboardOpenClose = true;
         } else if (strcmp(argv[i], "-keyboardClose") == 0) {
-            args->keyboardOpenClose = false;
+            keyboardOpenClose = false;
         } else if (strcmp(argv[i], "-conversionMode") == 0) {
             if (i + 1 < argc) {
                 if (argv[i + 1][0] == '-') {
                     return ERR_INVALID_ARGUMENTS;
                 }
-                args->conversionMode = argv[i + 1];
+                conversionMode = argv[i + 1];
                 i++;
             } else {
                 return ERR_INVALID_ARGUMENTS;
             }
+        } else if (strcmp(argv[i], "-list") == 0) {
+            verb = VERB_LIST;
+        } else if (strcmp(argv[i], "-version") == 0 || strcmp(argv[i], "--version") == 0) {
+            verb = VERB_PRINT_VERSION;
+            return 0;
         } else {
             return ERR_INVALID_ARGUMENTS;
         }
     }
-    if (args->langid == nullptr && args->guidProfile == nullptr && args->conversionMode == nullptr) {
+    if (langid == nullptr && guidProfile == nullptr && conversionMode == nullptr) {
         return ERR_INVALID_ARGUMENTS;
     }
     return 0;

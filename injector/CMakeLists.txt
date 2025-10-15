@@ -25,7 +25,7 @@ add_library(im-control-hook-${bitness} MODULE
 
 target_include_directories(im-control-hook-${bitness} PRIVATE ../common/include)
 
-add_executable(im-control-injector-${bitness}
+add_executable(im-control-injector-${bitness} WIN32
     injector.cpp
     ../common/src/log.cpp
     ../common/src/argparse.cpp

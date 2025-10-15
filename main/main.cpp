@@ -8,9 +8,9 @@
 #include "version.hpp"
 
 int printUsage(const char* exeName) {
-    printf("Usage: %s [LANGID-{GUID}] [-k|--keyboard <open|close>] [-c|--conversion-mode <alphamumeric|native[,...]>]\n", exeName);
-    printf("       %s -l|--list\n", exeName);
-    printf("       %s\n", exeName);
+    println("Usage: %s [LANGID-{GUID}] [-k|--keyboard <open|close>] [-c|--conversion-mode <alphamumeric|native[,...]>]", exeName);
+    println("       %s -l|--list", exeName);
+    println("       %s", exeName);
     return ERR_INVALID_ARGUMENTS;
 }
 
@@ -44,8 +44,8 @@ int main(int argc, const char *argv[]) {
         // Get the thread ID of the foreground window.
         dwThreadId = GetWindowThreadProcessId(hForegroundWindow, &dwProcessId);
         if (dwThreadId == 0) {
-            eprintln("%s: GetWindowThreadProcessId() failed with 0x%lx.\n", argv[0], GetLastError());
-	        LOG_ERROR("GetWindowThreadProcessId() failed with 0x%lx\n", GetLastError());
+            eprintln("%s: GetWindowThreadProcessId() failed with 0x%lx.", argv[0], GetLastError());
+	        LOG_ERROR("GetWindowThreadProcessId() failed with 0x%lx", GetLastError());
             err = ERR_GET_WINDOW_THREAD_PROCESS_ID;
         }
     }
@@ -54,8 +54,8 @@ int main(int argc, const char *argv[]) {
     if (!err) {
         hForegroundProcess = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, dwProcessId);
         if (!hForegroundProcess) {
-            eprintln("%s: OpenProcess() failed with 0x%lx.\n", argv[0], GetLastError());
-	        LOG_ERROR("OpenProcess() failed with 0x%lx\n", GetLastError());
+            eprintln("%s: OpenProcess() failed with 0x%lx.", argv[0], GetLastError());
+	        LOG_ERROR("OpenProcess() failed with 0x%lx", GetLastError());
             err = ERR_OPEN_PROCESS;
         }
     }
@@ -63,8 +63,8 @@ int main(int argc, const char *argv[]) {
     BOOL isWow64 = FALSE;
     if (!err) {
         if (!IsWow64Process(hForegroundProcess, &isWow64)) {
-            eprintln("%s: IsWow64Process() failed with 0x%lx.\n", argv[0], GetLastError());
-            LOG_ERROR("IsWow64Process() failed with 0x%lx\n", GetLastError());
+            eprintln("%s: IsWow64Process() failed with 0x%lx.", argv[0], GetLastError());
+            LOG_ERROR("IsWow64Process() failed with 0x%lx", GetLastError());
             err = ERR_IS_WOW64_PROCESS;
         }
     }
@@ -78,8 +78,8 @@ int main(int argc, const char *argv[]) {
         injectorPath.resize(65536);
         injectorPathBytes = GetModuleFileNameA(NULL, &injectorPath[0], (DWORD)injectorPath.size());
         if (injectorPathBytes == 0) {
-            eprintln("%s: GetModuleFileName() failed with 0x%lx.\n", argv[0], GetLastError());
-            LOG_ERROR("GetModuleFileName() failed with 0x%lx\n", GetLastError());
+            eprintln("%s: GetModuleFileName() failed with 0x%lx.", argv[0], GetLastError());
+            LOG_ERROR("GetModuleFileName() failed with 0x%lx", GetLastError());
             err = ERR_GET_MODULE_FILE_NAME;
         }
     }
@@ -124,6 +124,8 @@ int main(int argc, const char *argv[]) {
         }
         commandLine.reserve(65536);
 
+        LOG_INFO("Executing: %s", commandLine.c_str());
+
         if (!CreateProcessA(injectorPath.c_str(),
                             &commandLine[0],
                             NULL,
@@ -134,8 +136,8 @@ int main(int argc, const char *argv[]) {
                             NULL,
                             &si,
                             &pi)) {
-            eprintln("%s: CreateProcessA(\"%s\") failed with 0x%lx.\n", argv[0], injectorPath.c_str(), GetLastError());
-            LOG_ERROR("CreateProcessA(\"%s\") failed with 0x%lx\n", injectorPath.c_str(), GetLastError());
+            eprintln("%s: CreateProcessA(\"%s\") failed with 0x%lx.", argv[0], injectorPath.c_str(), GetLastError());
+            LOG_ERROR("CreateProcessA(\"%s\") failed with 0x%lx", injectorPath.c_str(), GetLastError());
             err = ERR_CREATE_PROCESS;
         }
     }
@@ -159,9 +161,31 @@ int main(int argc, const char *argv[]) {
         }
     }
 
+    LOG_INFO("Cleaning up...");
+
     CloseHandle(pi.hProcess);
     CloseHandle(pi.hThread);
     CloseHandle(hForegroundProcess);
 
     return err;
+}
+
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+    BOOL hasConsole = AttachConsole(ATTACH_PARENT_PROCESS);
+    if (hasConsole) {
+        freopen("CONOUT$", "w", stdout);
+        freopen("CONOUT$", "w", stderr);
+        freopen("CONIN$", "r", stdin);
+    }
+
+    int ret = main(__argc, const_cast<const char**>(__argv));
+
+    if (hasConsole) {
+        fclose(stdout);
+        fclose(stderr);
+        fclose(stdin);
+        FreeConsole();
+    }
+
+    return ret;
 }

@@ -6,7 +6,7 @@ if(NOT CMAKE_CXX_STANDARD)
     set(CMAKE_CXX_EXTENSIONS OFF)
 endif()
 
-add_executable(im-control
+add_executable(im-control WIN32
     main.cpp
     ../common/src/log.cpp
     ../common/src/argparse.cpp

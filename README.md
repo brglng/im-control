@@ -20,7 +20,7 @@ On modern Windows, input methods are managed by the Text Services Framework (TSF
 
 However, TSF requires the caller to be in the same thread as the foreground window. In order to effectively call TSF APIs, `im-control` injects a window procedure foreground window using `SetWindowsHookEx`, and then sends a custom window message to the injected window to execute TSF APIs. Other parameters are passed through shared memory to the target window.
 
-Using this approach, `im-control` can call all TSF methods on the target window, e.g., `ITfCompartment::SetValue`, is used to set compartments.
+Using this approach, `im-control` can call all TSF APIs on the target window, e.g., `ITfCompartment::SetValue`, is used to set compartments.
 
 ## Build and Install
 

@@ -35,8 +35,7 @@ cmake --install build --prefix bin --config RelWithDebInfo
 ## 用法
 
 ```
-im-control
-im-control [LANGID-{GUID}] [-k|--keyboard <open|close>] [-c|--conversion-mode <alphamumeric|native[,...]>]
+im-control [LANGID-{GUID}] [-k|--keyboard <open|close>] [-c|--conversion-mode <alphamumeric|native[,...]>] [-o FILE]
 im-control -l|--list
 im-control -v|--version
 ```

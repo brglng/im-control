@@ -43,6 +43,7 @@ void log(LogLevel level, const char* format, ...);
 #define LOG_ERROR(format, ...) LOG(__FILE__, __LINE__, __FUNCTION__, LOG_LEVEL_ERROR, format, ##__VA_ARGS__)
 
 #define println(format, ...) printf(format "\n", ##__VA_ARGS__)
+#define fprintln(file, format, ...) fprintf(file, format "\n", ##__VA_ARGS__)
 #define eprintln(format, ...) fprintf(stderr, format "\n", ##__VA_ARGS__)
 
 #endif /* LOG_HPP */

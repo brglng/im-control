@@ -37,6 +37,16 @@ int CliArgs::parse(int argc, const char *argv[]) {
         } else if (strcmp(argv[i], "-l") == 0 || strcmp(argv[i], "--list") == 0) {
             verb = VERB_LIST;
             return 0;
+        } else if (strcmp(argv[i], "-o") == 0) {
+            if (i + 1 < argc) {
+                if (argv[i + 1][0] == '-') {
+                    return ERR_INVALID_ARGUMENTS;
+                }
+                outputFile = argv[i + 1];
+                i++;
+            } else {
+                return ERR_INVALID_ARGUMENTS;
+            }
         } else if (strcmp(argv[i], "-V") == 0 || strcmp(argv[i], "--version") == 0) {
             verb = VERB_VERSION;
             return 0;

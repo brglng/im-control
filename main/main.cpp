@@ -302,16 +302,25 @@ int main(int argc, const char *argv[]) {
 
     if (!err) {
         if (args.verb == VERB_CURRENT) {
-            println("%04X-{%08lX-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}",
-                *pSharedData->langid,
-                pSharedData->guidProfile->Data1,
-                pSharedData->guidProfile->Data2,
-                pSharedData->guidProfile->Data3,
-                pSharedData->guidProfile->Data4[0], pSharedData->guidProfile->Data4[1],
-                pSharedData->guidProfile->Data4[2], pSharedData->guidProfile->Data4[3],
-                pSharedData->guidProfile->Data4[4], pSharedData->guidProfile->Data4[5],
-                pSharedData->guidProfile->Data4[6], pSharedData->guidProfile->Data4[7]
-            );
+            FILE* outfile = stdout;
+            if (args.outputFile) {
+                outfile = fopen(args.outputFile, "w");
+            }
+            if (outfile) {
+                fprintln(outfile, "%04X-{%08lX-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}",
+                    *pSharedData->langid,
+                    pSharedData->guidProfile->Data1,
+                    pSharedData->guidProfile->Data2,
+                    pSharedData->guidProfile->Data3,
+                    pSharedData->guidProfile->Data4[0], pSharedData->guidProfile->Data4[1],
+                    pSharedData->guidProfile->Data4[2], pSharedData->guidProfile->Data4[3],
+                    pSharedData->guidProfile->Data4[4], pSharedData->guidProfile->Data4[5],
+                    pSharedData->guidProfile->Data4[6], pSharedData->guidProfile->Data4[7]
+                );
+                if (args.outputFile) {
+                    fclose(outfile);
+                }
+            }
         }
     }
 

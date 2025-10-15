@@ -4,6 +4,7 @@
 #include <optional>
 #include <windows.h>
 #include <msctf.h>
+#include "err.hpp"
 #include "verb.hpp"
 
 struct SharedData {
@@ -15,6 +16,7 @@ struct SharedData {
     std::optional<GUID>     guidProfile;
     std::optional<bool>     keyboardOpenClose;
     std::optional<bool>     conversionModeNative;
+    Err                     err;
 
     SharedData() :
         hForegroundWindow(NULL),
@@ -24,7 +26,8 @@ struct SharedData {
         langid(),
         guidProfile(),
         keyboardOpenClose(),
-        conversionModeNative()
+        conversionModeNative(),
+        err(OK)
     {}
 };
 

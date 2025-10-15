@@ -28,25 +28,6 @@ int main(int argc, const char* argv[]) {
     logInit("injector32");
 #endif
 
-    // Open shared memory for data sharing, and also for ensuring only one instance is running.
-    HANDLE hMapFile = CreateFileMapping(INVALID_HANDLE_VALUE,
-                                        NULL,
-                                        PAGE_READWRITE,
-                                        0,
-                                        sizeof(SharedData),
-                                        SHARED_DATA_NAME);
-    if (hMapFile == NULL) {
-        eprintln("%s: CreateFileMapping failed with 0x%lx. Maybe another process is running.\n", argv[0], GetLastError());
-        LOG_ERROR("CreateFileMapping failed with 0x%lx\n", GetLastError());
-        err = ERR_CREATE_FILE_MAPPING;
-    }
-    if (!err) {
-        if (GetLastError() == ERROR_ALREADY_EXISTS) {
-            CloseHandle(hMapFile);
-            return 0;
-        }
-    }
-
     HWND hForegroundWindow = (HWND)std::atoll(argv[1]);
     DWORD dwThreadId = (DWORD)std::atoll(argv[2]);
 
@@ -60,9 +41,15 @@ int main(int argc, const char* argv[]) {
         }
     }
 
+    HANDLE hMapFile = OpenFileMapping(FILE_MAP_ALL_ACCESS, FALSE, SHARED_DATA_NAME);
+    if (hMapFile == NULL) {
+        LOG_ERROR("OpenFileMapping() failed with 0x%lx", GetLastError());
+        err = ERR_OPEN_FILE_MAPPING;
+    }
+
     SharedData* pSharedData = NULL;
     if (!err) {
-        // Create a shared memory object to store the IME profile data.
+        // Map the shared memory object to the process's address space.
         pSharedData = (SharedData*)MapViewOfFile(hMapFile,
                                                  FILE_MAP_ALL_ACCESS,
                                                  0,
@@ -71,9 +58,13 @@ int main(int argc, const char* argv[]) {
         if (pSharedData == NULL) {
             LOG_ERROR("MapViewOfFile() failed with 0x%lx", GetLastError());
             err = ERR_MAP_VIEW_OF_FILE;
-        } else {
-            new (pSharedData) SharedData();
         }
+    }
+
+    HANDLE hEvent = OpenEventA(EVENT_MODIFY_STATE, FALSE, "Local\\IMControlDoneEvent");
+    if (hEvent == NULL) {
+        LOG_ERROR("OpenEventA() failed with 0x%lx", GetLastError());
+        err = ERR_OPEN_EVENT;
     }
 
     std::string dllPath;

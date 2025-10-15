@@ -5,6 +5,7 @@
 #include "argparse.hpp"
 #include "err.hpp"
 #include "log.hpp"
+#include "shared_data.hpp"
 #include "version.hpp"
 
 int printUsage(const char* exeName) {
@@ -31,11 +32,54 @@ int main(int argc, const char *argv[]) {
 
     logInit("main");
 
-    HWND hForegroundWindow = GetForegroundWindow();
-    if (hForegroundWindow == nullptr) {
-        eprintln("%s: GetForegroundWindow() failed with 0x%lx.\n", argv[0], GetLastError());
-        LOG_ERROR("GetForegroundWindow() failed with 0x%lx\n", GetLastError());
-        err = ERR_GET_FOREGROUND_WINDOW;
+    // Open shared memory for data sharing, and also for ensuring only one instance is running.
+    HANDLE hMapFile = CreateFileMapping(INVALID_HANDLE_VALUE,
+                                        NULL,
+                                        PAGE_READWRITE,
+                                        0,
+                                        sizeof(SharedData),
+                                        SHARED_DATA_NAME);
+    if (hMapFile == NULL) {
+        LOG_ERROR("CreateFileMapping failed with 0x%lx", GetLastError());
+        err = ERR_CREATE_FILE_MAPPING;
+    }
+    if (!err) {
+        if (GetLastError() == ERROR_ALREADY_EXISTS) {
+            CloseHandle(hMapFile);
+            return ERR_ALREADY_RUNNING;
+        }
+    }
+
+    SharedData* pSharedData = NULL;
+    if (!err) {
+        // Create a shared memory object to store the IME profile data.
+        pSharedData = (SharedData*)MapViewOfFile(hMapFile,
+                                                 FILE_MAP_ALL_ACCESS,
+                                                 0,
+                                                 0,
+                                                 sizeof(SharedData));
+        if (pSharedData == NULL) {
+            LOG_ERROR("MapViewOfFile() failed with 0x%lx", GetLastError());
+            err = ERR_MAP_VIEW_OF_FILE;
+        } else {
+            new (pSharedData) SharedData();
+        }
+    }
+
+    HANDLE hEvent = CreateEventA(NULL, TRUE, FALSE, "Local\\IMControlDoneEvent");
+    if (hEvent == NULL) {
+        LOG_ERROR("CreateEventA() failed with 0x%lx", GetLastError());
+        err = ERR_CREATE_EVENT;
+    }
+
+    HWND hForegroundWindow = NULL;
+    if (!err) {
+        hForegroundWindow = GetForegroundWindow();
+        if (hForegroundWindow == nullptr) {
+            eprintln("%s: GetForegroundWindow() failed with 0x%lx.", argv[0], GetLastError());
+            LOG_ERROR("GetForegroundWindow() failed with 0x%lx", GetLastError());
+            err = ERR_GET_FOREGROUND_WINDOW;
+        }
     }
 
     DWORD dwThreadId = 0;
@@ -142,22 +186,72 @@ int main(int argc, const char *argv[]) {
         }
     }
 
+    // if (!err) {
+    //     LOG_INFO("Waiting for injector to finish...");
+    //     while (true) {
+    //         DWORD res = WaitForSingleObject(pi.hProcess, 50);
+    //         if (res == WAIT_FAILED) {
+    //             eprintln("%s: WaitForSingleObject() failed with 0x%lx.", argv[0], GetLastError());
+    //             LOG_ERROR("WaitForSingleObject() failed with 0x%lx", GetLastError());
+    //             err = ERR_WAIT_FOR_SINGLE_OBJECT;
+    //             break;
+    //         } else if (res == WAIT_TIMEOUT) {
+    //             Sleep(50);
+    //         } else {
+    //             break;
+    //         }
+    //     }
+    //     LOG_INFO("Injector finished.");
+    // }
+    //
+    // if (!err) {
+    //     DWORD exitCode = 0;
+    //     if (GetExitCodeProcess(pi.hProcess, &exitCode)) {
+    //         if (exitCode != 0) {
+    //             eprintln("%s: injector exited with code %lu.", argv[0], exitCode);
+    //             LOG_ERROR("injector exited with code %lu", exitCode);
+    //             err = (int)exitCode;
+    //         }
+    //     }
+    // }
+
     if (!err) {
-        if (WaitForSingleObject(pi.hProcess, INFINITE) == WAIT_FAILED) {
-            eprintln("%s: WaitForSingleObject() failed with 0x%lx.\n", argv[0], GetLastError());
-            LOG_ERROR("WaitForSingleObject() failed with 0x%lx\n", GetLastError());
-            err = ERR_WAIT_FOR_SINGLE_OBJECT;
+        LOG_INFO("Waiting for injector to finish...");
+        DWORD dwWaitResult = WaitForSingleObject(hEvent, INFINITE);
+        switch (dwWaitResult) {
+            case WAIT_OBJECT_0:
+                LOG_INFO("Injector finished.");
+                err = (int)pSharedData->err;
+                if (err != 0) {
+                    eprintln("%s: injector exited with code %d.", argv[0], err);
+                    LOG_ERROR("injector exited with code %d", err);
+                }
+                break;
+            case WAIT_FAILED:
+                eprintln("%s: WaitForSingleObject() failed with 0x%lx.", argv[0], GetLastError());
+                LOG_ERROR("WaitForSingleObject() failed with 0x%lx", GetLastError());
+                err = ERR_WAIT_FOR_SINGLE_OBJECT;
+                break;
+            default:
+                eprintln("%s: WaitForSingleObject() returned unexpected value 0x%lx.", argv[0], dwWaitResult);
+                LOG_ERROR("WaitForSingleObject() returned unexpected value 0x%lx", dwWaitResult);
+                err = ERR_WAIT_FOR_SINGLE_OBJECT;
+                break;
         }
     }
 
     if (!err) {
-        DWORD exitCode = 0;
-        if (GetExitCodeProcess(pi.hProcess, &exitCode)) {
-            if (exitCode != 0) {
-                eprintln("%s: injector exited with code %lu.\n", argv[0], exitCode);
-                LOG_ERROR("injector exited with code %lu\n", exitCode);
-                err = (int)exitCode;
-            }
+        if (args.verb == VERB_CURRENT) {
+            println("%04X-{%08lX-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}",
+                *pSharedData->langid,
+                pSharedData->guidProfile->Data1,
+                pSharedData->guidProfile->Data2,
+                pSharedData->guidProfile->Data3,
+                pSharedData->guidProfile->Data4[0], pSharedData->guidProfile->Data4[1],
+                pSharedData->guidProfile->Data4[2], pSharedData->guidProfile->Data4[3],
+                pSharedData->guidProfile->Data4[4], pSharedData->guidProfile->Data4[5],
+                pSharedData->guidProfile->Data4[6], pSharedData->guidProfile->Data4[7]
+            );
         }
     }
 
@@ -166,6 +260,18 @@ int main(int argc, const char *argv[]) {
     CloseHandle(pi.hProcess);
     CloseHandle(pi.hThread);
     CloseHandle(hForegroundProcess);
+
+    if (hEvent != NULL) {
+        CloseHandle(hEvent);
+    }
+    if (pSharedData != NULL) {
+        UnmapViewOfFile(pSharedData);
+    }
+    if (hMapFile != NULL) {
+        CloseHandle(hMapFile);
+    }
+
+    LOG_INFO("Exiting with code %d", err);
 
     return err;
 }

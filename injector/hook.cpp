@@ -201,6 +201,8 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
                 CoUninitialize();
             }
 
+            LOG_INFO("Done");
+
             return hr;
         }
     }
@@ -213,7 +215,7 @@ INT APIENTRY DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
 #ifdef _WIN64
             logInit("hook64");
 #else
-            logInit("hook32");
+            // logInit("hook32");
 #endif
             g_hMapFile = OpenFileMapping(FILE_MAP_ALL_ACCESS, FALSE, SHARED_DATA_NAME);
             if (g_hMapFile == NULL) {

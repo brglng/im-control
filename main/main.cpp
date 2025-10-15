@@ -9,7 +9,7 @@
 #include "version.hpp"
 
 int printUsage(const char* exeName) {
-    println("Usage: %s [LANGID-{GUID}] [-k|--keyboard <open|close>] [-c|--conversion-mode <alphamumeric|native[,...]>]", exeName);
+    println("Usage: %s [LANGID-{GUID}] [-k|--keyboard <open|close>] [-c|--conversion-mode <alphamumeric|native[,...]>] [-o FILE]", exeName);
     println("       %s -l|--list", exeName);
     println("       %s", exeName);
     return ERR_INVALID_ARGUMENTS;
@@ -113,6 +113,90 @@ int main(int argc, const char *argv[]) {
         }
     }
 
+    UINT uMsg = 0;
+    if (!err) {
+        // Register a message to be used for the hook.
+        uMsg = RegisterWindowMessage("IMControlWndMsg");
+        if (uMsg == 0) {
+            LOG_ERROR("RegisterWindowMessage(\"IMControlWndMsg\") failed with 0x%lx", GetLastError());
+            err = ERR_REGISTER_WINDOW_MESSAGE;
+        }
+    }
+
+    if (!err) {
+        // Initialize the shared data structure.
+        pSharedData->verb = args.verb;
+        pSharedData->hForegroundWindow = hForegroundWindow;
+        pSharedData->dwThreadId = dwThreadId;
+        pSharedData->uMsg = uMsg;
+
+        if (args.id) {
+            const char* langidStr = nullptr;
+            const char* guidStr = nullptr;
+
+            const char* dash = strchr(args.id, '-');
+            if (!dash) {
+                LOG_ERROR("Invalid id format: %s", args.id);
+                err = ERR_INVALID_ARGUMENTS;
+            }
+
+            if (!err) {
+                langidStr = args.id;
+                guidStr = dash + 1;
+                pSharedData->langid = (LANGID)std::strtoul(langidStr, NULL, 16);
+                if (pSharedData->langid == 0) {
+                    LOG_ERROR("Invalid LANGID: %s", langidStr);
+                    err = ERR_INVALID_ARGUMENTS;
+                }
+            }
+
+            LPOLESTR wszGuid = nullptr;
+            int wideSize = 0;
+            if (!err) {
+                wideSize = MultiByteToWideChar(CP_ACP, 0, guidStr, -1, NULL, 0);
+                if (wideSize > 0) {
+                    wszGuid = (LPOLESTR)CoTaskMemAlloc(wideSize * sizeof(WCHAR));
+                    if (!wszGuid)
+                        err = ERR_OUT_OF_MEMORY;
+                }
+            }
+
+            if (!err) {
+                MultiByteToWideChar(CP_ACP, 0,  guidStr, -1, wszGuid, wideSize);
+                pSharedData->guidProfile.emplace();
+                HRESULT hr = CLSIDFromString(wszGuid, &*pSharedData->guidProfile);
+                if (FAILED(hr)) {
+                    LOG_ERROR("CLSIDFromString(\"%s\") failed with 0x%lx", guidStr, hr);
+                    err = ERR_CLSID_FROM_STRING;
+                }
+            }
+
+            if (wszGuid != nullptr) {
+                CoTaskMemFree(wszGuid);
+            }
+        }
+    }
+
+    if (args.keyboardOpenClose) {
+        pSharedData->keyboardOpenClose = *args.keyboardOpenClose;
+    }
+
+    if (args.conversionMode) {
+        const char* mode = strtok((char*)args.conversionMode, ",");
+        while (mode != NULL && !err) {
+            if (strcmp(mode, "alphanumeric") == 0) {
+                pSharedData->conversionModeNative = false;
+            } else if (strcmp(mode, "native") == 0) {
+                pSharedData->conversionModeNative = true;
+            } else {
+                pSharedData->conversionModeNative = std::nullopt;
+                LOG_ERROR("Invalid conversion mode: %s", mode);
+                err = ERR_INVALID_ARGUMENTS;
+            }
+            mode = strtok(NULL, ",");
+        }
+    }
+
     const char* bitness = nullptr;
     std::string injectorPath;
     DWORD injectorPathBytes = 0;
@@ -144,34 +228,10 @@ int main(int argc, const char *argv[]) {
         injectorPath += bitness;
         injectorPath += ".exe";
 
-        std::string commandLine = "\"";
-        commandLine += injectorPath;
-        commandLine += "\" ";
-        commandLine += std::to_string((uintptr_t)hForegroundWindow);
-        commandLine += " ";
-        commandLine += std::to_string(dwThreadId);
-        if (args.id) {
-            commandLine += " ";
-            commandLine += args.id;
-        }
-        if (args.keyboardOpenClose) {
-            commandLine += " -k ";
-            if (*args.keyboardOpenClose) {
-                commandLine += "open";
-            } else {
-                commandLine += "close";
-            }
-        }
-        if (args.conversionMode) {
-            commandLine += " -c ";
-            commandLine += args.conversionMode;
-        }
-        commandLine.reserve(65536);
-
-        LOG_INFO("Executing: %s", commandLine.c_str());
+        LOG_INFO("Calling %s", injectorPath.c_str());
 
         if (!CreateProcessA(injectorPath.c_str(),
-                            &commandLine[0],
+                            NULL,
                             NULL,
                             NULL,
                             FALSE,

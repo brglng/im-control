@@ -4,21 +4,12 @@
 #include <string>
 #include <windows.h>
 #include <msctf.h>
-#include "argparse.hpp"
 #include "err.hpp"
 #include "log.hpp"
 #include "shared_data.hpp"
 
-// Usage: %s <hWnd> <dwThreadId> [LANGID,GUID] [-k|--keyboard <open|close>] [-c|--conversion-mode <alphanumeric|native[,...]>]
-
-int main(int argc, const char* argv[]) {
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
     int err = OK;
-
-    CliArgs args;
-    err = args.parse(argc - 3, argv + 3);
-    if (err) {
-        return err;
-    }
 
     SetLastError(0);
 
@@ -27,19 +18,6 @@ int main(int argc, const char* argv[]) {
 #else
     logInit("injector32");
 #endif
-
-    HWND hForegroundWindow = (HWND)std::atoll(argv[1]);
-    DWORD dwThreadId = (DWORD)std::atoll(argv[2]);
-
-    UINT uMsg = 0;
-    if (!err) {
-        // Register a message to be used for the hook.
-        uMsg = RegisterWindowMessage("IMControlWndMsg");
-        if (uMsg == 0) {
-            LOG_ERROR("RegisterWindowMessage(\"IMControlWndMsg\") failed with 0x%lx", GetLastError());
-            err = ERR_REGISTER_WINDOW_MESSAGE;
-        }
-    }
 
     HANDLE hMapFile = OpenFileMapping(FILE_MAP_ALL_ACCESS, FALSE, SHARED_DATA_NAME);
     if (hMapFile == NULL) {
@@ -66,6 +44,10 @@ int main(int argc, const char* argv[]) {
         LOG_ERROR("OpenEventA() failed with 0x%lx", GetLastError());
         err = ERR_OPEN_EVENT;
     }
+
+    HWND hForegroundWindow = pSharedData->hForegroundWindow;
+    DWORD dwThreadId = pSharedData->dwThreadId;
+    UINT uMsg = pSharedData->uMsg;
 
     std::string dllPath;
     DWORD dllPathBytes = 0;
@@ -105,80 +87,6 @@ int main(int argc, const char* argv[]) {
         if (hHookProc == NULL) {
             LOG_ERROR("GetProcAddress(\"IMControl_WndProcHook\") failed with 0x%lx", GetLastError());
             err = ERR_GET_PROC_ADDRESS;
-        }
-    }
-
-    if (!err) {
-        // Initialize the shared data structure.
-        pSharedData->hForegroundWindow = hForegroundWindow;
-        pSharedData->dwThreadId = dwThreadId;
-        pSharedData->uMsg = uMsg;
-        pSharedData->verb = args.verb;
-
-        if (args.id) {
-            const char* langidStr = nullptr;
-            const char* guidStr = nullptr;
-
-            const char* dash = strchr(args.id, '-');
-            if (!dash) {
-                LOG_ERROR("Invalid id format: %s", args.id);
-                err = ERR_INVALID_ARGUMENTS;
-            }
-
-            if (!err) {
-                langidStr = args.id;
-                guidStr = dash + 1;
-                pSharedData->langid = (LANGID)std::strtoul(langidStr, NULL, 16);
-                if (pSharedData->langid == 0) {
-                    LOG_ERROR("Invalid LANGID: %s", langidStr);
-                    err = ERR_INVALID_ARGUMENTS;
-                }
-            }
-
-            LPOLESTR wszGuid = nullptr;
-            int wideSize = 0;
-            if (!err) {
-                wideSize = MultiByteToWideChar(CP_ACP, 0, guidStr, -1, NULL, 0);
-                if (wideSize > 0) {
-                    wszGuid = (LPOLESTR)CoTaskMemAlloc(wideSize * sizeof(WCHAR));
-                    if (!wszGuid)
-                        err = ERR_OUT_OF_MEMORY;
-                }
-            }
-
-            if (!err) {
-                MultiByteToWideChar(CP_ACP, 0,  guidStr, -1, wszGuid, wideSize);
-                pSharedData->guidProfile.emplace();
-                HRESULT hr = CLSIDFromString(wszGuid, &*pSharedData->guidProfile);
-                if (FAILED(hr)) {
-                    LOG_ERROR("CLSIDFromString(\"%s\") failed with 0x%lx", guidStr, hr);
-                    err = ERR_CLSID_FROM_STRING;
-                }
-            }
-
-            if (wszGuid != nullptr) {
-                CoTaskMemFree(wszGuid);
-            }
-        }
-    }
-
-    if (args.keyboardOpenClose) {
-        pSharedData->keyboardOpenClose = *args.keyboardOpenClose;
-    }
-
-    if (args.conversionMode) {
-        const char* mode = strtok((char*)args.conversionMode, ",");
-        while (mode != NULL && !err) {
-            if (strcmp(mode, "alphanumeric") == 0) {
-                pSharedData->conversionModeNative = false;
-            } else if (strcmp(mode, "native") == 0) {
-                pSharedData->conversionModeNative = true;
-            } else {
-                pSharedData->conversionModeNative = std::nullopt;
-                LOG_ERROR("Invalid conversion mode: %s", mode);
-                err = ERR_INVALID_ARGUMENTS;
-            }
-            mode = strtok(NULL, ",");
         }
     }
 
@@ -248,8 +156,4 @@ int main(int argc, const char* argv[]) {
     LOG_INFO("Exiting with code %d\n", err);
 
     return err;
-}
-
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
-    return main(__argc, const_cast<const char**>(__argv));
 }

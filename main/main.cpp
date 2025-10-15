@@ -320,6 +320,8 @@ int main(int argc, const char *argv[]) {
                 if (args.outputFile) {
                     fclose(outfile);
                 }
+            } else {
+                LOG_ERROR("fopen(%s) failed with 0x%lx", args.outputFile, GetLastError());
             }
         }
     }

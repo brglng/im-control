@@ -59,7 +59,7 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
                                     g_pSharedData->langid.has_value() &&
                                     profile.langid == *g_pSharedData->langid)
                                 {
-                                    LOG_INFO("langid = 0x%04x", profile.langid);
+                                    LOG_INFO("langid = 0x%04X", profile.langid);
                                     hr = pProfileMgr->ActivateProfile(profile.dwProfileType,
                                                                       profile.langid,
                                                                       profile.clsid,
@@ -71,7 +71,7 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
                                     }
                                     break;
                                 } else if (IsEqualGUID(profile.guidProfile, *g_pSharedData->guidProfile)) {
-                                    LOG_INFO("guidProfile = {%08lx-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
+                                    LOG_INFO("guidProfile = {%08lX-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}",
                                              profile.guidProfile.Data1,
                                              profile.guidProfile.Data2,
                                              profile.guidProfile.Data3,

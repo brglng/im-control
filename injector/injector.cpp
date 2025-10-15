@@ -246,7 +246,7 @@ int main(int argc, const char* argv[]) {
 
     if (!err) {
         if (args.verb == VERB_CURRENT) {
-            println("%04x-{%08lx-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x}",
+            println("%04X-{%08lX-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}",
                 *pSharedData->langid,
                 pSharedData->guidProfile->Data1,
                 pSharedData->guidProfile->Data2,

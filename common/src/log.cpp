@@ -19,7 +19,7 @@ public:
             filename += "\\im-control";
             if (CreateDirectoryA(filename.c_str(), NULL) || GetLastError() == ERROR_ALREADY_EXISTS) {
                 filename += '\\';
-                filename += std::move(name);
+                filename += name;
                 filename += ".log";
                 m_file = fopen(filename.c_str(), "w");
             }
@@ -72,7 +72,7 @@ static void vlog(LogLevel level, const char* format, va_list args) {
 }
 
 void log(LogLevel level, const char* format, ...) {
-    if (log_file.get() && level >= LOG_LEVEL_INFO) {
+    if (log_file.get()) {
         va_list args;
         va_start(args, format);
         vlog(level, format, args);

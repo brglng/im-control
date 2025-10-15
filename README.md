@@ -18,7 +18,7 @@ Advantages over `im-select`:
 
 On modern Windows, input methods are managed by the Text Services Framework (TSF). Each input method is represented by a Text Input Processor (TIP), which is identified by a globally unique identifier (GUID). The active TIP can be changed using the `ITfInputProcessorProfileMgr::ActivateProfile` method, which works for nearly all kinds of windows.
 
-However, TSF requires the caller to be in the same thread as the target window. To make it work, `im-control` injects a DLL into the target process by injecting a window procedure using `SetWindowsHookEx`, and then sends a window message to the injected window to execute the profile switching code. The parameters are passed through shared memory to the target window.
+However, TSF requires the caller to be in the same thread as the foreground window. In order to effectively call TSF APIs, `im-control` injects a window procedure foreground window using `SetWindowsHookEx`, and then sends a custom window message to the injected window to execute TSF APIs. Other parameters are passed through shared memory to the target window.
 
 Using this approach, `im-control` can call all TSF methods on the target window, e.g., `ITfCompartment::SetValue`, is used to set compartments.
 
@@ -93,7 +93,7 @@ im-control
 Example output:
 
 ```
-0804-{81d4e9c9-1d3b-41bc-9e6c-4b40bf79e35e}
+0804-{81D4E9C9-1D3B-41BC-9E6C-4B40BF79E35E}
 ```
 
 ## History

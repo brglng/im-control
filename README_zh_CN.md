@@ -16,9 +16,9 @@
 
 在现代 Windows 上，输入法由文本服务框架（TSF）管理。每个输入法由一个文本输入处理器（TIP）表示，并由一个全局唯一标识符（GUID）标识。可以使用 `ITfInputProcessorProfileMgr::ActivateProfile` 方法更改活动 TIP，该方法适用于几乎所有类型的窗口。
 
-然而，TSF 要求调用者与目标窗口在同一线程中。为了使其工作，`im-control` 使用 `SetWindowsHookEx` 将 DLL 中的窗口过程注入目标进程，然后向被注入的窗口发送一个窗口消息以执行 TIP 切换。参数则通过共享内存传递给目标窗口。
+然而，TSF 要求调用者与前台窗口在同一线程中。为了有效地调用 TSF API，`im-control` 使用 `SetWindowsHookEx` 将 DLL 中的窗口过程注入前台窗口，然后向被注入的窗口发送一个自定义的窗口消息以调用 TSF 的 API。其他参数则通过共享内存传递给目标窗口。
 
-使用这种方法，`im-control` 可以在目标窗口上调用所有 TSF 方法，例如用于设置区段的 `ITfCompartment::SetValue`。
+使用这种方法，`im-control` 可以在目标窗口上调用所有 TSF API，例如用于设置区段的 `ITfCompartment::SetValue`。
 
 ## 编译与安装
 
@@ -91,7 +91,7 @@ im-control
 输出示例：
 
 ```
-0804-{81d4e9c9-1d3b-41bc-9e6c-4b40bf79e35e}
+0804-{81D4E9C9-1D3B-41BC-9E6C-4B40BF79E35E}
 ```
 
 ## 版本历史

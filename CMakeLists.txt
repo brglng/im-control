@@ -32,13 +32,13 @@ add_custom_target(
 
 install(CODE "
     execute_process(
-        COMMAND \"${CMAKE_COMMAND}\" --install \"${CMAKE_CURRENT_BINARY_DIR}/injector32\" --config \"$<CONFIG>\" --prefix \"${CMAKE_INSTALL_PREFIX}\"
+        COMMAND \"${CMAKE_COMMAND}\" --install \"${CMAKE_CURRENT_BINARY_DIR}/injector32\" --config \"$<CONFIG>\" --prefix \"$<INSTALL_PREFIX>\"
         COMMAND_ERROR_IS_FATAL ANY
     )
 ")
 install(CODE "
     execute_process(
-        COMMAND \"${CMAKE_COMMAND}\" --install \"${CMAKE_CURRENT_BINARY_DIR}/injector64\" --config \"$<CONFIG>\" --prefix \"${CMAKE_INSTALL_PREFIX}\"
+        COMMAND \"${CMAKE_COMMAND}\" --install \"${CMAKE_CURRENT_BINARY_DIR}/injector64\" --config \"$<CONFIG>\" --prefix \"$<INSTALL_PREFIX>\"
         COMMAND_ERROR_IS_FATAL ANY
     )
 ")

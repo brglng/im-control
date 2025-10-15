@@ -51,7 +51,7 @@ Before running, please make sure the following files are in the same directory:
 - `im-control-hook-32.dll`
 - `im-control-hook-64.dll`
 
-Switch IM by `LANGID-{GUID}`:
+### Switch IM by `LANGID-{GUID}`
 
 ```bash
 # English (United States)
@@ -64,27 +64,27 @@ im-control 0804-{81D4E9C9-1D3B-41BC-9E6C-4B40BF79E35E}
 im-control 0804-{A3F4CDED-B1E9-41EE-9CA6-7B4D0DE6CB0A}
 ```
 
-Set keyboard on/off state (for Chinese IMEs, it sets Chinese/English mode):
+### Set keyboard on/off state (for Chinese IMEs, it sets Chinese/English mode)
 
 ```bash
 im-control -k open
 im-control -k close
 ```
 
-Or combine them:
+### Or combine them
 
 ```bash
 # Switch to Weasel and turn on Chinese input mode
 im-control 0804-{A3F4CDED-B1E9-41EE-9CA6-7B4D0DE6CB0A} -k open
 ```
 
-List all IMs (WIP):
+### List all IMs (WIP)
 
 ```bash
 im-control -l
 ```
 
-Get current IM:
+### Get current IM
 
 ```bash
 im-control

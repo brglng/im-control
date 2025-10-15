@@ -49,7 +49,7 @@ im-control -v|--version
 - `im-control-hook-32.dll`
 - `im-control-hook-64.dll`
 
-使用 `LANGID-{GUID}` 切换输入法：
+### 使用 `LANGID-{GUID}` 切换输入法
 
 ```bash
 # 英语（美国）
@@ -62,27 +62,27 @@ im-control 0804-{81D4E9C9-1D3B-41BC-9E6C-4B40BF79E35E}
 im-control 0804-{A3F4CDED-B1E9-41EE-9CA6-7B4D0DE6CB0A}
 ```
 
-设置键盘开关（对于中文输入法，此即中/英模式）：
+### 设置键盘开关（对于中文输入法，此即中/英模式）
 
 ```bash
 im-control -k open
 im-control -k close
 ```
 
-或者将以上组合起来：
+### 或者将以上组合起来
 
 ```bash
 # 切换到小狼毫并开启中文输入模式
 im-control 0804-{A3F4CDED-B1E9-41EE-9CA6-7B4D0DE6CB0A} -k open
 ```
 
-列出所有输入法（开发中）：
+### 列出所有输入法（开发中）
 
 ```bash
 im-control -l
 ```
 
-获取当前输入法：
+### 获取当前输入法
 
 ```bash
 im-control

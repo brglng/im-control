@@ -153,7 +153,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         CloseHandle(hMapFile);
     }
 
-    LOG_INFO("Exiting with code %d\n", err);
+    LOG_INFO("Exiting with code %d", err);
 
     return err;
 }

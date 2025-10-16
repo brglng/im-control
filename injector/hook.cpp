@@ -28,7 +28,7 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
                 LOG_INFO("COM initialized");
                 hr = CoCreateInstance(CLSID_TF_InputProcessorProfiles,
                                       NULL,
-                                      CLSCTX_INPROC_SERVER,
+                                      CLSCTX_ALL,
                                       IID_ITfInputProcessorProfileMgr,
                                       (void**)&pProfileMgr);
             }

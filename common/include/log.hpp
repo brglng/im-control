@@ -27,14 +27,21 @@ void log(LogLevel level, const char* format, ...);
 
 #define LOG(file, line, func, level, format, ...) do { \
     struct tm localTime; \
-    time_t now = time(nullptr); \
-    localtime_s(&localTime, &now); \
+    SYSTEMTIME lt; \
+    GetLocalTime(&lt); \
+    localTime.tm_year = lt.wYear - 1900; \
+    localTime.tm_mon  = lt.wMonth - 1; \
+    localTime.tm_mday = lt.wDay; \
+    localTime.tm_hour = lt.wHour; \
+    localTime.tm_min  = lt.wMinute; \
+    localTime.tm_sec  = lt.wSecond; \
+    localTime.tm_isdst = 0; \
     char timeBuffer[20]; \
     strftime(timeBuffer, sizeof(timeBuffer), "%Y-%m-%d %H:%M:%S", &localTime); \
     DWORD processId = GetCurrentProcessId(); \
     DWORD threadId = GetCurrentThreadId(); \
     const char* filename = strrchr(file, '\\') ? strrchr(file, '\\') + 1 : file; \
-    log(level, "[%s][%lu][%lu][%s:%d][%s][%s] " format, timeBuffer, processId, threadId, filename, line, func, level_to_string(level), ##__VA_ARGS__); \
+    log(level, "[%s.%03d][%lu][%lu][%s:%d][%s][%s] " format, timeBuffer, lt.wMilliseconds, processId, threadId, filename, line, func, level_to_string(level), ##__VA_ARGS__); \
 } while (0)
 
 #define LOG_DEBUG(format, ...) LOG(__FILE__, __LINE__, __FUNCTION__, LOG_LEVEL_DEBUG, format, ##__VA_ARGS__)

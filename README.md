@@ -11,6 +11,8 @@ Advantages over `im-select`:
 - Allows for setting compartments, including:
   - keyboard on/off state (e.g. Chinese/English mode for Chinese IMEs or Kana/English mode for Japanese IMEs).
   - conversion mode (e.g. alphanumeric/native mode).
+- Console window won't flash when running from GUI.
+- Other features, including conditional switching, etc.
 
 ## How It Works
 
@@ -108,12 +110,13 @@ Example output:
 
 ### v0.4.0 (2025/10/18)
 
+- Compile as Windows GUI application to avoid console window flash, but still supports to attach to console when run from console.
 - Use Event instead of waiting for process exit to reduce wait time.
 - Add `-o|--output FILE` option to write output to file.
-- Improve logging.
 - Add `--if` and `--else` options for conditional switching.
 - Unify GUID format to upper case letters.
 - Refactor and improve injector code.
+- Improve logging.
 - Other bug fixes.
 
 ### v0.3.0 (2025/10/14)

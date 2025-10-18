@@ -106,6 +106,16 @@ Example output:
 
 ## History
 
+### v0.4.0 (2025/10/18)
+
+- Use Event instead of waiting for process exit to reduce wait time.
+- Add `-o|--output FILE` option to write output to file.
+- Improve logging.
+- Add `--if` and `--else` options for conditional switching.
+- Unify GUID format to upper case letters.
+- Refactor and improve injector code.
+- Other bug fixes.
+
 ### v0.3.0 (2025/10/14)
 
 - Change command line syntax to be more compatible with existing tools.

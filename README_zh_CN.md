@@ -61,6 +61,8 @@ im-control 0804-{81D4E9C9-1D3B-41BC-9E6C-4B40BF79E35E}
 im-control 0804-{A3F4CDED-B1E9-41EE-9CA6-7B4D0DE6CB0A}
 ```
 
+输出为之前输入法的 `LANGID-{GUID}`。
+
 ### 设置键盘开关（对于中文输入法，此即中/英模式）
 
 ```bash
@@ -73,6 +75,13 @@ im-control -k close
 ```bash
 # 切换到小狼毫并开启中文输入模式
 im-control 0804-{A3F4CDED-B1E9-41EE-9CA6-7B4D0DE6CB0A} -k open
+```
+
+### 条件切换
+
+```bash
+# 如果当前输入法是英语键盘，则切换到微软拼音，否则切换到小狼毫
+im-control 0804-{81D4E9C9-1D3B-41BC-9E6C-4B40BF79E35E} --if 0409-{00000000-0000-0000-0000-000000000000} --else 0804-{A3F4CDED-B1E9-41EE-9CA6-7B4D0DE6CB0A}
 ```
 
 ### 列出所有输入法（开发中）

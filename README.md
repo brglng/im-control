@@ -37,7 +37,7 @@ cmake --install build --prefix bin --config RelWithDebInfo
 ## Usage
 
 ```
-im-control [LANGID-{GUID}] [-k|--keyboard <open|close>] [-c|--conversion-mode <alphamumeric|native[,...]>] [-o FILE]
+im-control [LANGID-{GUID}] [-k|--keyboard <open|close>] [-c|--conversion-mode <alphamumeric|native[,...]>] [--if <LANGID-{GUID}>] [--else <LANGID-{GUID}>] [-o FILE]
 im-control -l|--list
 im-control -v|--version
 ```
@@ -63,6 +63,8 @@ im-control 0804-{81D4E9C9-1D3B-41BC-9E6C-4B40BF79E35E}
 im-control 0804-{A3F4CDED-B1E9-41EE-9CA6-7B4D0DE6CB0A}
 ```
 
+The output is the previous IM's `LANGID-{GUID}`.
+
 ### Set keyboard on/off state (for Chinese IMEs, it sets Chinese/English mode)
 
 ```bash
@@ -75,6 +77,13 @@ im-control -k close
 ```bash
 # Switch to Weasel and turn on Chinese input mode
 im-control 0804-{A3F4CDED-B1E9-41EE-9CA6-7B4D0DE6CB0A} -k open
+```
+
+### Conditional Switching
+
+```bash
+# If current IM is en-US keyboard, switch to Chinese Pinyin, else switch to Weasel
+im-control 0804-{81D4E9C9-1D3B-41BC-9E6C-4B40BF79E35E} --if 0409-{00000000-0000-0000-0000-000000000000} --else 0804-{A3F4CDED-B1E9-41EE-9CA6-7B4D0DE6CB0A}
 ```
 
 ### List all IMs (WIP)

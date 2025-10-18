@@ -39,12 +39,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         }
     }
 
-    HANDLE hEvent = OpenEventA(EVENT_MODIFY_STATE, FALSE, "Local\\IMControlDoneEvent");
-    if (hEvent == NULL) {
-        LOG_ERROR("OpenEventA() failed with 0x%lx", GetLastError());
-        err = ERR_OPEN_EVENT;
-    }
-
     HWND hForegroundWindow = pSharedData->hForegroundWindow;
     DWORD dwThreadId = pSharedData->dwThreadId;
     UINT uMsg = pSharedData->uMsg;
@@ -129,12 +123,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         }
     }
 
-    pSharedData->err = (Err)err;
-    if (!SetEvent(hEvent)) {
-        LOG_ERROR("SetEvent() failed with 0x%lx", GetLastError());
-        err = ERR_SET_EVENT;
-    }
-
     LOG_INFO("Cleaning up...");
 
     if (hHook != NULL) {
@@ -142,9 +130,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     }
     if (hDll != NULL) {
         FreeLibrary(hDll);
-    }
-    if (hEvent != NULL) {
-        CloseHandle(hEvent);
     }
     if (pSharedData != NULL) {
         UnmapViewOfFile(pSharedData);

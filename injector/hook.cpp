@@ -6,6 +6,7 @@
 #include "log.hpp"
 
 static HANDLE g_hMapFile = NULL;
+static HANDLE g_hEvent = NULL;
 static SharedData* g_pSharedData = NULL;
 
 extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCode, WPARAM wParam, LPARAM lParam) {
@@ -216,6 +217,15 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
                 }
             }
 
+            if (SUCCEEDED(hr)) {
+                if (!SetEvent(g_hEvent)) {
+                    LOG_ERROR("SetEvent() failed with 0x%lx", GetLastError());
+                    g_pSharedData->err = ERR_SET_EVENT;
+                } else {
+                    LOG_INFO("SetEvent() succeeded");
+                }
+            }
+
             if (pCompartmentMgr) {
                 pCompartmentMgr->Release();
             }
@@ -261,8 +271,23 @@ INT APIENTRY DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
                 g_hMapFile = NULL;
                 return FALSE;
             }
+
+            g_hEvent = OpenEventA(EVENT_MODIFY_STATE, FALSE, "Local\\IMControlDoneEvent");
+            if (g_hEvent == NULL) {
+                LOG_ERROR("OpenEventA() failed with 0x%lx", GetLastError());
+                UnmapViewOfFile(g_pSharedData);
+                g_pSharedData = NULL;
+                CloseHandle(g_hMapFile);
+                g_hMapFile = NULL;
+                return FALSE;
+            }
+
             break;
         case DLL_PROCESS_DETACH:
+            if (g_hEvent) {
+                CloseHandle(g_hEvent);
+                g_hEvent = NULL;
+            }
             if (g_pSharedData) {
                 UnmapViewOfFile(g_pSharedData);
                 g_pSharedData = NULL;

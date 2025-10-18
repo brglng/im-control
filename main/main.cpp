@@ -301,7 +301,7 @@ int main(int argc, const char *argv[]) {
                 LOG_INFO("Injector finished.");
                 err = (int)pSharedData->err;
                 if (err != 0) {
-                    eprintln("%s: injector exited with code %d.", argv[0], err);
+                    eprintln("%s: hook exited with code %d.", argv[0], err);
                     LOG_ERROR("injector exited with code %d", err);
                 }
                 break;

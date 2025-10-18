@@ -9,10 +9,50 @@
 #include "version.hpp"
 
 int printUsage(const char* exeName) {
-    println("Usage: %s [LANGID-{GUID}] [-k|--keyboard <open|close>] [-c|--conversion-mode <alphamumeric|native[,...]>] [-o FILE]", exeName);
+    println("Usage: %s [LANGID-{GUID}] [-k|--keyboard <open|close>] [-c|--conversion-mode <alphamumeric|native[,...]>] [--if <LANGID-{GUID}>] [--else <LANGID-{GUID}>] [-o FILE]", exeName);
     println("       %s -l|--list", exeName);
     println("       %s", exeName);
     return ERR_INVALID_ARGUMENTS;
+}
+
+int parseKey(LANGID* langid, GUID* guidProfile, const char* key) {
+    const char* langidStr = nullptr;
+    const char* guidStr = nullptr;
+
+    const char* dash = strchr(key, '-');
+    if (!dash) {
+        LOG_ERROR("Invalid key format: %s", key);
+        return ERR_INVALID_ARGUMENTS;
+    }
+
+    langidStr = key;
+    guidStr = dash + 1;
+    *langid = (LANGID)std::strtoul(langidStr, NULL, 16);
+    if (*langid == 0) {
+        LOG_ERROR("Invalid LANGID: %s", langidStr);
+        return ERR_INVALID_ARGUMENTS;
+    }
+
+    LPOLESTR wszGuid = nullptr;
+    int wideSize = 0;
+
+    wideSize = MultiByteToWideChar(CP_ACP, 0, guidStr, -1, NULL, 0);
+    if (wideSize > 0) {
+        wszGuid = (LPOLESTR)CoTaskMemAlloc(wideSize * sizeof(WCHAR));
+        if (!wszGuid)
+            return ERR_OUT_OF_MEMORY;
+    }
+
+    MultiByteToWideChar(CP_ACP, 0,  guidStr, -1, wszGuid, wideSize);
+    HRESULT hr = CLSIDFromString(wszGuid, guidProfile);
+    if (FAILED(hr)) {
+        LOG_ERROR("CLSIDFromString(\"%s\") failed with 0x%lx", guidStr, hr);
+        CoTaskMemFree(wszGuid);
+        return ERR_CLSID_FROM_STRING;
+    }
+
+    CoTaskMemFree(wszGuid);
+    return OK;
 }
 
 int main(int argc, const char *argv[]) {
@@ -130,50 +170,28 @@ int main(int argc, const char *argv[]) {
         pSharedData->dwThreadId = dwThreadId;
         pSharedData->uMsg = uMsg;
 
-        if (args.id) {
-            const char* langidStr = nullptr;
-            const char* guidStr = nullptr;
+        if (args.key) {
+            err = parseKey(&pSharedData->langid.emplace(), &pSharedData->guidProfile.emplace(), args.key);
+        }
+    }
 
-            const char* dash = strchr(args.id, '-');
-            if (!dash) {
-                LOG_ERROR("Invalid id format: %s", args.id);
-                err = ERR_INVALID_ARGUMENTS;
-            }
+    if (!err && args.ifKey) {
+        LANGID ifLangId;
+        GUID ifGuidProfile;
+        err = parseKey(&ifLangId, &ifGuidProfile, args.ifKey);
+        if (!err) {
+            pSharedData->ifLangId = ifLangId;
+            pSharedData->ifGuidProfile = ifGuidProfile;
+        }
+    }
 
-            if (!err) {
-                langidStr = args.id;
-                guidStr = dash + 1;
-                pSharedData->langid = (LANGID)std::strtoul(langidStr, NULL, 16);
-                if (pSharedData->langid == 0) {
-                    LOG_ERROR("Invalid LANGID: %s", langidStr);
-                    err = ERR_INVALID_ARGUMENTS;
-                }
-            }
-
-            LPOLESTR wszGuid = nullptr;
-            int wideSize = 0;
-            if (!err) {
-                wideSize = MultiByteToWideChar(CP_ACP, 0, guidStr, -1, NULL, 0);
-                if (wideSize > 0) {
-                    wszGuid = (LPOLESTR)CoTaskMemAlloc(wideSize * sizeof(WCHAR));
-                    if (!wszGuid)
-                        err = ERR_OUT_OF_MEMORY;
-                }
-            }
-
-            if (!err) {
-                MultiByteToWideChar(CP_ACP, 0,  guidStr, -1, wszGuid, wideSize);
-                pSharedData->guidProfile.emplace();
-                HRESULT hr = CLSIDFromString(wszGuid, &*pSharedData->guidProfile);
-                if (FAILED(hr)) {
-                    LOG_ERROR("CLSIDFromString(\"%s\") failed with 0x%lx", guidStr, hr);
-                    err = ERR_CLSID_FROM_STRING;
-                }
-            }
-
-            if (wszGuid != nullptr) {
-                CoTaskMemFree(wszGuid);
-            }
+    if (!err && args.elseKey) {
+        LANGID elseLangId;
+        GUID elseGuidProfile;
+        err = parseKey(&elseLangId, &elseGuidProfile, args.elseKey);
+        if (!err) {
+            pSharedData->elseLangId = elseLangId;
+            pSharedData->elseGuidProfile = elseGuidProfile;
         }
     }
 
@@ -301,7 +319,7 @@ int main(int argc, const char *argv[]) {
     }
 
     if (!err) {
-        if (args.verb == VERB_CURRENT) {
+        if (pSharedData->langid && pSharedData->guidProfile) {
             FILE* outfile = stdout;
             if (args.outputFile) {
                 outfile = fopen(args.outputFile, "w");

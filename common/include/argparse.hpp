@@ -6,16 +6,20 @@
 
 struct CliArgs {
     Verb                    verb;
-    const char*             id;
+    const char*             key;
     std::optional<bool>     keyboardOpenClose;
     const char*             conversionMode;
+    const char*             ifKey;
+    const char*             elseKey;
     const char*             outputFile;
 
     CliArgs() :
         verb(VERB_CURRENT),
-        id(nullptr),
+        key(nullptr),
         keyboardOpenClose(),
         conversionMode(nullptr),
+        ifKey(nullptr),
+        elseKey(nullptr),
         outputFile(nullptr)
     {}
 

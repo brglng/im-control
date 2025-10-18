@@ -2,10 +2,11 @@
 #define VERB_HPP
 
 enum Verb {
-    VERB_CURRENT = 0,
-    VERB_SWITCH = 1,
-    VERB_LIST = 2,
-    VERB_VERSION = 3
+    VERB_CURRENT,
+    VERB_SWITCH,
+    VERB_LIST,
+    VERB_HELP,
+    VERB_VERSION,
 };
 
 #endif /* VERB_HPP */

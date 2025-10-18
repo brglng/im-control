@@ -16,6 +16,10 @@ struct SharedData {
     std::optional<GUID>     guidProfile;
     std::optional<bool>     keyboardOpenClose;
     std::optional<bool>     conversionModeNative;
+    std::optional<LANGID>   ifLangId;
+    std::optional<GUID>     ifGuidProfile;
+    std::optional<LANGID>   elseLangId;
+    std::optional<GUID>     elseGuidProfile;
     Err                     err;
 
     SharedData() :
@@ -27,6 +31,10 @@ struct SharedData {
         guidProfile(),
         keyboardOpenClose(),
         conversionModeNative(),
+        ifLangId(),
+        ifGuidProfile(),
+        elseLangId(),
+        elseGuidProfile(),
         err(OK)
     {}
 };

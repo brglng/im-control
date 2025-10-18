@@ -33,20 +33,54 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
                                       (void**)&pProfileMgr);
             }
 
+            TF_INPUTPROCESSORPROFILE prevProfile;
             if (SUCCEEDED(hr)) {
-                if (g_pSharedData->verb == VERB_CURRENT) {
-                    TF_INPUTPROCESSORPROFILE profile;
-                    hr = pProfileMgr->GetActiveProfile(GUID_TFCAT_TIP_KEYBOARD, &profile);
-                    if (SUCCEEDED(hr)) {
-                        g_pSharedData->langid = profile.langid;
-                        g_pSharedData->guidProfile = profile.guidProfile;
-                    }
-                }
+                hr = pProfileMgr->GetActiveProfile(GUID_TFCAT_TIP_KEYBOARD, &prevProfile);
             }
 
-            if ((g_pSharedData->verb == VERB_SWITCH || g_pSharedData->verb == VERB_LIST) &&
-                (g_pSharedData->langid.has_value() || g_pSharedData->guidProfile.has_value())) {
+            if (g_pSharedData->verb == VERB_SWITCH) {
                 if (SUCCEEDED(hr)) {
+                    LANGID targetLangId = 0;
+                    const GUID* targetGuidProfile = nullptr;
+                    if (g_pSharedData->ifLangId && g_pSharedData->ifGuidProfile) {
+                        if (*g_pSharedData->ifLangId == prevProfile.langid &&
+                            IsEqualGUID(*g_pSharedData->ifGuidProfile, prevProfile.guidProfile)) {
+                            targetLangId = g_pSharedData->langid ? *g_pSharedData->langid : 0;
+                            targetGuidProfile = g_pSharedData->guidProfile ? &(*g_pSharedData->guidProfile) : nullptr;
+                        } else if (g_pSharedData->elseLangId && g_pSharedData->elseGuidProfile) {
+                            targetLangId = *g_pSharedData->elseLangId;
+                            targetGuidProfile = &(*g_pSharedData->elseGuidProfile);
+                        } else {
+                            LOG_INFO("Condition not met, skipping profile switch");
+                            hr = S_OK;
+                        }
+                    } else {
+                        if (g_pSharedData->langid && g_pSharedData->guidProfile) {
+                            targetLangId = *g_pSharedData->langid;
+                            targetGuidProfile = &(*g_pSharedData->guidProfile);
+                        } else {
+                            LOG_INFO("No target profile specified, skipping profile switch");
+                        }
+                    }
+
+                    LOG_INFO("targetLangId=0x%04X", targetLangId);
+                    if (targetGuidProfile) {
+                        LOG_INFO("targetGuidProfile = {%08lX-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}",
+                                 targetGuidProfile ? targetGuidProfile->Data1 : 0,
+                                 targetGuidProfile ? targetGuidProfile->Data2 : 0,
+                                 targetGuidProfile ? targetGuidProfile->Data3 : 0,
+                                 targetGuidProfile ? targetGuidProfile->Data4[0] : 0,
+                                 targetGuidProfile ? targetGuidProfile->Data4[1] : 0,
+                                 targetGuidProfile ? targetGuidProfile->Data4[2] : 0,
+                                 targetGuidProfile ? targetGuidProfile->Data4[3] : 0,
+                                 targetGuidProfile ? targetGuidProfile->Data4[4] : 0,
+                                 targetGuidProfile ? targetGuidProfile->Data4[5] : 0,
+                                 targetGuidProfile ? targetGuidProfile->Data4[6] : 0,
+                                 targetGuidProfile ? targetGuidProfile->Data4[7] : 0);
+                    } else {
+                        LOG_INFO("targetGuidProfile = nullptr");
+                    }
+
                     LOG_INFO("WndProcHook: pProfileMgr=%p", pProfileMgr);
                     IEnumTfInputProcessorProfiles* pEnum = nullptr;
                     hr = pProfileMgr->EnumProfiles(0, &pEnum);
@@ -55,22 +89,9 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
                         ULONG fetched = 0;
                         while (pEnum->Next(1, &profile, &fetched) == S_OK) {
                             if (IsEqualGUID(profile.catid, GUID_TFCAT_TIP_KEYBOARD) && (profile.dwFlags & TF_IPP_FLAG_ENABLED)) {
-                                if (!g_pSharedData->guidProfile.has_value() &&
-                                    g_pSharedData->langid.has_value() &&
-                                    profile.langid == *g_pSharedData->langid)
+                                if (targetLangId != 0 && targetGuidProfile != nullptr &&
+                                    profile.langid == targetLangId && IsEqualGUID(profile.guidProfile, *targetGuidProfile))
                                 {
-                                    LOG_INFO("langid = 0x%04X", profile.langid);
-                                    hr = pProfileMgr->ActivateProfile(profile.dwProfileType,
-                                                                      profile.langid,
-                                                                      profile.clsid,
-                                                                      profile.guidProfile,
-                                                                      profile.hkl,
-                                                                      TF_IPPMF_FORPROCESS | TF_IPPMF_DONTCARECURRENTINPUTLANGUAGE);
-                                    if (FAILED(hr)) {
-                                        LOG_ERROR("ERROR: ActivateProfile() failed with 0x%0lx", hr);
-                                    }
-                                    break;
-                                } else if (IsEqualGUID(profile.guidProfile, *g_pSharedData->guidProfile)) {
                                     LOG_INFO("guidProfile = {%08lX-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}",
                                              profile.guidProfile.Data1,
                                              profile.guidProfile.Data2,
@@ -85,7 +106,9 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
                                                                       profile.guidProfile,
                                                                       profile.hkl,
                                                                       TF_IPPMF_FORPROCESS | TF_IPPMF_DONTCARECURRENTINPUTLANGUAGE);
-                                    if (FAILED(hr)) {
+                                    if (SUCCEEDED(hr)) {
+                                        LOG_INFO("Profile switched successfully");
+                                    } else {
                                         LOG_ERROR("ERROR: ActivateProfile() failed with 0x%0lx", hr);
                                     }
                                     break;
@@ -99,6 +122,11 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
                 } else {
                     LOG_ERROR("ERROR: CoCreateInstance(CLSID_TF_InputProcessorProfiles) failed with 0x%0lx", hr);
                 }
+            }
+
+            if (SUCCEEDED(hr)) {
+                g_pSharedData->langid = prevProfile.langid;
+                g_pSharedData->guidProfile = prevProfile.guidProfile;
             }
 
             if ((g_pSharedData->verb == VERB_SWITCH) && (g_pSharedData->keyboardOpenClose || g_pSharedData->conversionModeNative)) {

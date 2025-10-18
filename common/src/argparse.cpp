@@ -10,7 +10,7 @@ int CliArgs::parse(int argc, const char *argv[]) {
     verb = VERB_SWITCH;
     for (int i = 0; i < argc; i++) {
         if (argv[i][0] != '-') {
-            id = argv[i];
+            key = argv[i];
         } else if (strcmp(argv[i], "-k") == 0 || strcmp(argv[i], "--keyboard") == 0) {
             if (i + 1 < argc) {
                 if (strcmp(argv[i + 1], "open") == 0) {
@@ -47,6 +47,29 @@ int CliArgs::parse(int argc, const char *argv[]) {
             } else {
                 return ERR_INVALID_ARGUMENTS;
             }
+        } else if (strcmp(argv[i], "--if") == 0) {
+            if (i + 1 < argc) {
+                if (argv[i + 1][0] == '-') {
+                    return ERR_INVALID_ARGUMENTS;
+                }
+                ifKey = argv[i + 1];
+                i++;
+            } else {
+                return ERR_INVALID_ARGUMENTS;
+            }
+        } else if (strcmp(argv[i], "--else") == 0) {
+            if (i + 1 < argc) {
+                if (argv[i + 1][0] == '-') {
+                    return ERR_INVALID_ARGUMENTS;
+                }
+                elseKey = argv[i + 1];
+                i++;
+            } else {
+                return ERR_INVALID_ARGUMENTS;
+            }
+        } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+            verb = VERB_HELP;
+            return 0;
         } else if (strcmp(argv[i], "-V") == 0 || strcmp(argv[i], "--version") == 0) {
             verb = VERB_VERSION;
             return 0;
@@ -54,7 +77,7 @@ int CliArgs::parse(int argc, const char *argv[]) {
             return ERR_INVALID_ARGUMENTS;
         }
     }
-    if (id == nullptr && !keyboardOpenClose && conversionMode == nullptr) {
+    if (key == nullptr && !keyboardOpenClose && conversionMode == nullptr) {
         verb = VERB_CURRENT;
     }
     return 0;

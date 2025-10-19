@@ -67,17 +67,13 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
                     LOG_INFO("targetLangId=0x%04X", targetLangId);
                     if (targetGuidProfile) {
                         LOG_INFO("targetGuidProfile = {%08lX-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}",
-                                 targetGuidProfile ? targetGuidProfile->Data1 : 0,
-                                 targetGuidProfile ? targetGuidProfile->Data2 : 0,
-                                 targetGuidProfile ? targetGuidProfile->Data3 : 0,
-                                 targetGuidProfile ? targetGuidProfile->Data4[0] : 0,
-                                 targetGuidProfile ? targetGuidProfile->Data4[1] : 0,
-                                 targetGuidProfile ? targetGuidProfile->Data4[2] : 0,
-                                 targetGuidProfile ? targetGuidProfile->Data4[3] : 0,
-                                 targetGuidProfile ? targetGuidProfile->Data4[4] : 0,
-                                 targetGuidProfile ? targetGuidProfile->Data4[5] : 0,
-                                 targetGuidProfile ? targetGuidProfile->Data4[6] : 0,
-                                 targetGuidProfile ? targetGuidProfile->Data4[7] : 0);
+                                 targetGuidProfile->Data1,
+                                 targetGuidProfile->Data2,
+                                 targetGuidProfile->Data3,
+                                 targetGuidProfile->Data4[0], targetGuidProfile->Data4[1],
+                                 targetGuidProfile->Data4[2], targetGuidProfile->Data4[3],
+                                 targetGuidProfile->Data4[4], targetGuidProfile->Data4[5],
+                                 targetGuidProfile->Data4[6], targetGuidProfile->Data4[7]);
                     } else {
                         LOG_INFO("targetGuidProfile = nullptr");
                     }

@@ -28,7 +28,6 @@ target_include_directories(im-control-hook-${bitness} PRIVATE ../common/include)
 add_executable(im-control-injector-${bitness} WIN32
     injector.cpp
     ../common/src/log.cpp
-    ../common/src/argparse.cpp
 )
 
 target_include_directories(im-control-injector-${bitness} PRIVATE ../common/include)

@@ -8,8 +8,8 @@ endif()
 
 add_executable(im-control WIN32
     main.cpp
+    argparse.cpp
     ../common/src/log.cpp
-    ../common/src/argparse.cpp
 )
 
 target_include_directories(im-control PRIVATE ../common/include)

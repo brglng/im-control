@@ -86,7 +86,7 @@ im-control 0804-{A3F4CDED-B1E9-41EE-9CA6-7B4D0DE6CB0A} -k open
 im-control 0804-{81D4E9C9-1D3B-41BC-9E6C-4B40BF79E35E} --if 0409-{00000000-0000-0000-0000-000000000000} --else 0804-{A3F4CDED-B1E9-41EE-9CA6-7B4D0DE6CB0A}
 ```
 
-### 列出所有输入法（开发中）
+### 列出所有输入法
 
 ```bash
 im-control -l

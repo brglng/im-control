@@ -74,7 +74,7 @@ im-control -k open
 im-control -k close
 ```
 
-### Or combine them
+### Or Combine the Above
 
 ```bash
 # Switch to Weasel and turn on Chinese input mode

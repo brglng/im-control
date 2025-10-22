@@ -10,6 +10,7 @@ add_executable(im-control WIN32
     main.cpp
     argparse.cpp
     ../common/src/log.cpp
+    ../im_control.manifest
 )
 
 target_include_directories(im-control PRIVATE ../common/include)

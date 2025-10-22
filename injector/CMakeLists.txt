@@ -21,6 +21,7 @@ endif()
 add_library(im-control-hook-${bitness} MODULE
     hook.cpp
     ../common/src/log.cpp
+    ../im_control.manifest
 )
 
 target_include_directories(im-control-hook-${bitness} PRIVATE ../common/include)
@@ -28,6 +29,7 @@ target_include_directories(im-control-hook-${bitness} PRIVATE ../common/include)
 add_executable(im-control-injector-${bitness} WIN32
     injector.cpp
     ../common/src/log.cpp
+    ../im_control.manifest
 )
 
 target_include_directories(im-control-injector-${bitness} PRIVATE ../common/include)

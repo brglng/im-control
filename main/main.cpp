@@ -1,3 +1,4 @@
+#include <clocale>
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -13,6 +14,86 @@ int printUsage(const char* exeName) {
     println("       %s -l|--list", exeName);
     println("       %s", exeName);
     return ERR_INVALID_ARGUMENTS;
+}
+
+int listInputMethods() {
+    HRESULT hr = S_OK;
+    int err = OK;
+
+    hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+    if (FAILED(hr)) {
+        LOG_ERROR("ERROR: CoInitialize() failed with 0x%0lx", hr);
+        err = ERR_COM_INITIALIZE;
+    }
+
+    ITfInputProcessorProfiles* pProfiles = NULL;
+    if (!err) {
+        hr = CoCreateInstance(CLSID_TF_InputProcessorProfiles,
+                              NULL,
+                              CLSCTX_ALL,
+                              IID_ITfInputProcessorProfiles,
+                              (void**)&pProfiles);
+        if (FAILED(hr)) {
+            LOG_ERROR("ERROR: CoCreateInstance(CLSID_TF_InputProcessorProfiles) failed with 0x%0lx", hr);
+            err = ERR_CREATE_INPUT_PROCESSOR_PROFILES;
+        }
+    }
+    ITfInputProcessorProfileMgr* pProfileMgr = NULL;
+    if (!err) {
+        hr = CoCreateInstance(CLSID_TF_InputProcessorProfiles,
+                              NULL,
+                              CLSCTX_ALL,
+                              IID_ITfInputProcessorProfileMgr,
+                              (void**)&pProfileMgr);
+        if (FAILED(hr)) {
+            LOG_ERROR("ERROR: CoCreateInstance(CLSID_TF_InputProcessorProfiles) failed with 0x%0lx", hr);
+            err = ERR_CREATE_INPUT_PROCESSOR_PROFILE_MGR;
+        }
+    }
+    IEnumTfInputProcessorProfiles* pEnum = nullptr;
+    if (!err) {
+        hr = pProfileMgr->EnumProfiles(0, &pEnum);
+        if (FAILED(hr)) {
+            LOG_ERROR("ERROR: EnumInputProcessorInfo() failed with 0x%0lx", hr);
+            err = ERR_ENUM_PROFILES;
+        }
+    }
+    if (!err) {
+        TF_INPUTPROCESSORPROFILE profile;
+        while (pEnum->Next(1, &profile, NULL) == S_OK) {
+            if (IsEqualGUID(profile.catid, GUID_TFCAT_TIP_KEYBOARD) && (profile.dwFlags & TF_IPP_FLAG_ENABLED)) {
+                wchar_t langName[LOCALE_NAME_MAX_LENGTH] = {0};
+                BSTR desc = NULL;
+                LCIDToLocaleName(MAKELCID(profile.langid, SORT_DEFAULT), langName, LOCALE_NAME_MAX_LENGTH, 0);
+                pProfiles->GetLanguageProfileDescription(profile.clsid, profile.langid, profile.guidProfile, &desc);
+                printf("%04X-{%08lX-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X} %ls%s%ls\n",
+                    profile.langid,
+                    profile.guidProfile.Data1,
+                    profile.guidProfile.Data2,
+                    profile.guidProfile.Data3,
+                    profile.guidProfile.Data4[0], profile.guidProfile.Data4[1],
+                    profile.guidProfile.Data4[2], profile.guidProfile.Data4[3],
+                    profile.guidProfile.Data4[4], profile.guidProfile.Data4[5],
+                    profile.guidProfile.Data4[6], profile.guidProfile.Data4[7],
+                    langName,
+                    desc ? ": " : "",
+                    desc ? desc : L""
+                );
+                SysFreeString(desc);
+            }
+        }
+    }
+    if (pEnum) {
+        pEnum->Release();
+    }
+    if (pProfileMgr) {
+        pProfileMgr->Release();
+    }
+    if (pProfiles) {
+        pProfiles->Release();
+    }
+    CoUninitialize();
+    return err;
 }
 
 int parseKey(LANGID* langid, GUID* guidProfile, const char* key) {
@@ -63,12 +144,14 @@ int main(int argc, const char *argv[]) {
         return printUsage(argv[0]);
     }
 
+    SetLastError(0);
+
     if (args.verb == VERB_VERSION) {
         println("%s", VERSION_STRING);
         return 0;
+    } else if (args.verb == VERB_LIST) {
+        return listInputMethods();
     }
-
-    SetLastError(0);
 
     logInit("main");
 
@@ -371,6 +454,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         freopen("CONOUT$", "w", stdout);
         freopen("CONOUT$", "w", stderr);
         freopen("CONIN$", "r", stdin);
+    }
+
+    if (GetConsoleOutputCP() == CP_UTF8) {
+        setlocale(LC_ALL, ".UTF8");
+    } else {
+        setlocale(LC_ALL, "");
     }
 
     int ret = main(__argc, const_cast<const char**>(__argv));

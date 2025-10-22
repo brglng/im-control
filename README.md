@@ -100,12 +100,6 @@ im-control -l
 im-control
 ```
 
-Example output:
-
-```
-0804-{81D4E9C9-1D3B-41BC-9E6C-4B40BF79E35E}
-```
-
 ## History
 
 ### v0.4.0 (2025/10/18)

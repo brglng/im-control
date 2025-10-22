@@ -67,7 +67,7 @@ im-control 0804-{A3F4CDED-B1E9-41EE-9CA6-7B4D0DE6CB0A}
 
 The output is the previous IM's `LANGID-{GUID}`.
 
-### Set keyboard on/off state (for Chinese input methods, it sets Chinese/English mode)
+### Set Keyboard On/Off State (For Chinese input methods, this sets Chinese/English mode.)
 
 ```bash
 im-control -k open

@@ -52,7 +52,7 @@ Before running, please make sure the following files are in the same directory:
 - `im-control-hook-32.dll`
 - `im-control-hook-64.dll`
 
-### Switch IM by `LANGID-{GUID}`
+### Switch Input Method by `LANGID-{GUID}`
 
 ```bash
 # English (United States)
@@ -67,7 +67,7 @@ im-control 0804-{A3F4CDED-B1E9-41EE-9CA6-7B4D0DE6CB0A}
 
 The output is the previous IM's `LANGID-{GUID}`.
 
-### Set keyboard on/off state (for Chinese IMEs, it sets Chinese/English mode)
+### Set keyboard on/off state (for Chinese input methods, it sets Chinese/English mode)
 
 ```bash
 im-control -k open
@@ -84,17 +84,17 @@ im-control 0804-{A3F4CDED-B1E9-41EE-9CA6-7B4D0DE6CB0A} -k open
 ### Conditional Switching
 
 ```bash
-# If current IM is en-US keyboard, switch to Chinese Pinyin, else switch to Weasel
+# If current input method is en-US keyboard, switch to Chinese Pinyin, else switch to Weasel
 im-control 0804-{81D4E9C9-1D3B-41BC-9E6C-4B40BF79E35E} --if 0409-{00000000-0000-0000-0000-000000000000} --else 0804-{A3F4CDED-B1E9-41EE-9CA6-7B4D0DE6CB0A}
 ```
 
-### List all IMs
+### List All Input Methods
 
 ```bash
 im-control -l
 ```
 
-### Get current IM
+### Get Current Input Method
 
 ```bash
 im-control

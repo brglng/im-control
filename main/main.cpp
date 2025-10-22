@@ -151,6 +151,8 @@ int main(int argc, const char *argv[]) {
         return 0;
     } else if (args.verb == VERB_LIST) {
         return listInputMethods();
+    } else if (args.verb == VERB_HELP) {
+        return printUsage(argv[0]);
     }
 
     logInit("main");

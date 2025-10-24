@@ -16,13 +16,14 @@ int printUsage(const char* exeName) {
     return ERR_INVALID_ARGUMENTS;
 }
 
-int listInputMethods() {
+int listInputMethods(const char* argv0) {
     HRESULT hr = S_OK;
     int err = OK;
 
     hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
     if (FAILED(hr)) {
-        LOG_ERROR("ERROR: CoInitialize() failed with 0x%0lx", hr);
+        eprintln("%s: CoInitialize() failed with 0x%0lx", argv0, hr);
+        LOG_ERROR("CoInitialize() failed with 0x%0lx", hr);
         err = ERR_COM_INITIALIZE;
     }
 
@@ -34,7 +35,8 @@ int listInputMethods() {
                               IID_ITfInputProcessorProfiles,
                               (void**)&pProfiles);
         if (FAILED(hr)) {
-            LOG_ERROR("ERROR: CoCreateInstance(CLSID_TF_InputProcessorProfiles) failed with 0x%0lx", hr);
+            eprintln("%s: CoCreateInstance(CLSID_TF_InputProcessorProfiles) failed with 0x%0lx", argv0, hr);
+            LOG_ERROR("CoCreateInstance(CLSID_TF_InputProcessorProfiles) failed with 0x%0lx", hr);
             err = ERR_CREATE_INPUT_PROCESSOR_PROFILES;
         }
     }
@@ -46,7 +48,8 @@ int listInputMethods() {
                               IID_ITfInputProcessorProfileMgr,
                               (void**)&pProfileMgr);
         if (FAILED(hr)) {
-            LOG_ERROR("ERROR: CoCreateInstance(CLSID_TF_InputProcessorProfiles) failed with 0x%0lx", hr);
+            eprintln("%s: CoCreateInstance(CLSID_TF_InputProcessorProfiles) failed with 0x%0lx", argv0, hr);
+            LOG_ERROR("CoCreateInstance(CLSID_TF_InputProcessorProfiles) failed with 0x%0lx", hr);
             err = ERR_CREATE_INPUT_PROCESSOR_PROFILE_MGR;
         }
     }
@@ -54,7 +57,8 @@ int listInputMethods() {
     if (!err) {
         hr = pProfileMgr->EnumProfiles(0, &pEnum);
         if (FAILED(hr)) {
-            LOG_ERROR("ERROR: EnumInputProcessorInfo() failed with 0x%0lx", hr);
+            eprintln("%s: EnumInputProcessorInfo() failed with 0x%0lx", argv0, hr);
+            LOG_ERROR("EnumInputProcessorInfo() failed with 0x%0lx", hr);
             err = ERR_ENUM_PROFILES;
         }
     }
@@ -96,12 +100,13 @@ int listInputMethods() {
     return err;
 }
 
-int parseKey(LANGID* langid, GUID* guidProfile, const char* key) {
+int parseKey(const char* argv0, LANGID* langid, GUID* guidProfile, const char* key) {
     const char* langidStr = nullptr;
     const char* guidStr = nullptr;
 
     const char* dash = strchr(key, '-');
     if (!dash) {
+        eprintln("%s: Invalid key format: %s", argv0, key);
         LOG_ERROR("Invalid key format: %s", key);
         return ERR_INVALID_ARGUMENTS;
     }
@@ -110,6 +115,7 @@ int parseKey(LANGID* langid, GUID* guidProfile, const char* key) {
     guidStr = dash + 1;
     *langid = (LANGID)std::strtoul(langidStr, NULL, 16);
     if (*langid == 0) {
+        eprintln("%s: Invalid LANGID: %s", argv0, langidStr);
         LOG_ERROR("Invalid LANGID: %s", langidStr);
         return ERR_INVALID_ARGUMENTS;
     }
@@ -120,13 +126,17 @@ int parseKey(LANGID* langid, GUID* guidProfile, const char* key) {
     wideSize = MultiByteToWideChar(CP_ACP, 0, guidStr, -1, NULL, 0);
     if (wideSize > 0) {
         wszGuid = (LPOLESTR)CoTaskMemAlloc(wideSize * sizeof(WCHAR));
-        if (!wszGuid)
+        if (!wszGuid) {
+            eprintln("%s: Out of memory", argv0);
+            LOG_ERROR("Out of memory");
             return ERR_OUT_OF_MEMORY;
+        }
     }
 
     MultiByteToWideChar(CP_ACP, 0,  guidStr, -1, wszGuid, wideSize);
     HRESULT hr = CLSIDFromString(wszGuid, guidProfile);
     if (FAILED(hr)) {
+        eprintln("%s: CLSIDFromString(\"%s\") failed with 0x%lx", argv0, guidStr, hr);
         LOG_ERROR("CLSIDFromString(\"%s\") failed with 0x%lx", guidStr, hr);
         CoTaskMemFree(wszGuid);
         return ERR_CLSID_FROM_STRING;
@@ -150,7 +160,7 @@ int main(int argc, const char *argv[]) {
         println("%s", VERSION_STRING);
         return 0;
     } else if (args.verb == VERB_LIST) {
-        return listInputMethods();
+        return listInputMethods(argv[0]);
     } else if (args.verb == VERB_HELP) {
         return printUsage(argv[0]);
     }
@@ -165,6 +175,7 @@ int main(int argc, const char *argv[]) {
                                         sizeof(SharedData),
                                         SHARED_DATA_NAME);
     if (hMapFile == NULL) {
+        eprintln("%s: CreateFileMapping failed with 0x%lx.", argv[0], GetLastError());
         LOG_ERROR("CreateFileMapping failed with 0x%lx", GetLastError());
         err = ERR_CREATE_FILE_MAPPING;
     }
@@ -184,6 +195,7 @@ int main(int argc, const char *argv[]) {
                                                  0,
                                                  sizeof(SharedData));
         if (pSharedData == NULL) {
+            eprintln("%s: MapViewOfFile() failed with 0x%lx.", argv[0], GetLastError());
             LOG_ERROR("MapViewOfFile() failed with 0x%lx", GetLastError());
             err = ERR_MAP_VIEW_OF_FILE;
         } else {
@@ -193,6 +205,7 @@ int main(int argc, const char *argv[]) {
 
     HANDLE hEvent = CreateEventA(NULL, TRUE, FALSE, "Local\\IMControlDoneEvent");
     if (hEvent == NULL) {
+        eprintln("%s: CreateEventA() failed with 0x%lx.", argv[0], GetLastError());
         LOG_ERROR("CreateEventA() failed with 0x%lx", GetLastError());
         err = ERR_CREATE_EVENT;
     }
@@ -243,6 +256,7 @@ int main(int argc, const char *argv[]) {
         // Register a message to be used for the hook.
         uMsg = RegisterWindowMessage("IMControlWndMsg");
         if (uMsg == 0) {
+            eprintln("%s: RegisterWindowMessage(\"IMControlWndMsg\") failed with 0x%lx.", argv[0], GetLastError());
             LOG_ERROR("RegisterWindowMessage(\"IMControlWndMsg\") failed with 0x%lx", GetLastError());
             err = ERR_REGISTER_WINDOW_MESSAGE;
         }
@@ -256,15 +270,22 @@ int main(int argc, const char *argv[]) {
         pSharedData->uMsg = uMsg;
 
         if (args.key) {
-            err = parseKey(&pSharedData->langid.emplace(), &pSharedData->guidProfile.emplace(), args.key);
+            err = parseKey(argv[0], &pSharedData->langid.emplace(), &pSharedData->guidProfile.emplace(), args.key);
+            if (err) {
+                eprintln("%s: Failed to parse key: %s", argv[0], args.key);
+                LOG_ERROR("Failed to parse key: %s", args.key);
+            }
         }
     }
 
     if (!err && args.ifKey) {
         LANGID ifLangId;
         GUID ifGuidProfile;
-        err = parseKey(&ifLangId, &ifGuidProfile, args.ifKey);
-        if (!err) {
+        err = parseKey(argv[0], &ifLangId, &ifGuidProfile, args.ifKey);
+        if (err) {
+            eprintln("%s: Failed to parse if key: %s", argv[0], args.ifKey);
+            LOG_ERROR("Failed to parse if key: %s", args.ifKey);
+        } else {
             pSharedData->ifLangId = ifLangId;
             pSharedData->ifGuidProfile = ifGuidProfile;
         }
@@ -273,8 +294,11 @@ int main(int argc, const char *argv[]) {
     if (!err && args.elseKey) {
         LANGID elseLangId;
         GUID elseGuidProfile;
-        err = parseKey(&elseLangId, &elseGuidProfile, args.elseKey);
-        if (!err) {
+        err = parseKey(argv[0], &elseLangId, &elseGuidProfile, args.elseKey);
+        if (err) {
+            eprintln("%s: Failed to parse else key: %s", argv[0], args.elseKey);
+            LOG_ERROR("Failed to parse else key: %s", args.elseKey);
+        } else {
             pSharedData->elseLangId = elseLangId;
             pSharedData->elseGuidProfile = elseGuidProfile;
         }
@@ -293,6 +317,7 @@ int main(int argc, const char *argv[]) {
                 pSharedData->conversionModeNative = true;
             } else {
                 pSharedData->conversionModeNative = std::nullopt;
+                eprintln("%s: Invalid conversion mode: %s", argv[0], mode);
                 LOG_ERROR("Invalid conversion mode: %s", mode);
                 err = ERR_INVALID_ARGUMENTS;
             }
@@ -424,7 +449,8 @@ int main(int argc, const char *argv[]) {
                     fclose(outfile);
                 }
             } else {
-                LOG_ERROR("fopen(%s) failed with 0x%lx", args.outputFile, GetLastError());
+                eprintln("%s: fopen(\"%s\") failed with 0x%lx.", argv[0], args.outputFile, GetLastError());
+                LOG_ERROR("fopen(\"%s\") failed with 0x%lx", args.outputFile, GetLastError());
             }
         }
     }
@@ -459,9 +485,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     }
 
     if (GetConsoleOutputCP() == CP_UTF8) {
-        setlocale(LC_ALL, ".UTF8");
+        setlocale(LC_CTYPE, ".UTF8");
     } else {
-        setlocale(LC_ALL, "");
+        setlocale(LC_CTYPE, "");
     }
 
     int ret = main(__argc, const_cast<const char**>(__argv));

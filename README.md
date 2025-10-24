@@ -102,6 +102,10 @@ im-control
 
 ## History
 
+### v0.5.0 (2025/10/24)
+
+- Implement `-l|--list` option.
+
 ### v0.4.0 (2025/10/18)
 
 - Compile as Windows GUI application to avoid console window flash, but still supports to attach to console when run from console.

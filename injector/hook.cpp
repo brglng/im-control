@@ -186,7 +186,10 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
                             LOG_ERROR("ERROR: GetCompartment(GUID_COMPARTMENT_KEYBOARD_INPUTMODE_CONVERSION) failed with 0x%0lx", hr);
                         }
                         if (SUCCEEDED(hr)) {
-                            DWORD oldMode = varKeyboardInputModeConversion.lVal;
+                            DWORD oldMode = 0;
+                            if (varKeyboardInputModeConversion.vt == VT_I4 || varKeyboardInputModeConversion.vt == VT_UI4) {
+                                oldMode = varKeyboardInputModeConversion.lVal;
+                            }
                             DWORD newMode = oldMode;
                             if  (*g_pSharedData->conversionModeNative) {
                                 newMode |= TF_CONVERSIONMODE_NATIVE;
@@ -194,6 +197,7 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
                                 newMode &= ~TF_CONVERSIONMODE_NATIVE;
                             }
                             if (newMode != oldMode) {
+                                varKeyboardInputModeConversion.vt = VT_I4;
                                 varKeyboardInputModeConversion.lVal = newMode;
                                 hr = keyboardInputModeConversionCompartment->SetValue(0, &varKeyboardInputModeConversion);
                             }

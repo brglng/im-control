@@ -24,6 +24,7 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
             ITfInputProcessorProfileMgr* pProfileMgr = NULL;
             ITfThreadMgr* pThreadMgr = NULL;
             ITfCompartmentMgr* pCompartmentMgr = nullptr;
+            TfClientId clientId = TF_CLIENTID_NULL;
 
             if (SUCCEEDED(hr)) {
                 LOG_INFO("COM initialized");
@@ -191,6 +192,15 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
                 }
 
                 if (SUCCEEDED(hr)) {
+                    hr = pThreadMgr->Activate(&clientId);
+                    if (FAILED(hr)) {
+                        LOG_ERROR("ERROR: ITfThreadMgr::Activate() failed with 0x%0lx", hr);
+                    } else {
+                        LOG_INFO("Activated TfClientId = %lu", clientId);
+                    }
+                }
+
+                if (SUCCEEDED(hr)) {
                     if (g_pSharedData->keyboardOpenClose) {
                         LOG_INFO("keyboardOpenClose = %d", *g_pSharedData->keyboardOpenClose);
                         ITfCompartment* keyboardOpenCloseCompartment = nullptr;
@@ -221,7 +231,7 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
                                 } else {
                                     varKeyboardOpenClose.lVal = 0;
                                 }
-                                hr = keyboardOpenCloseCompartment->SetValue(0, &varKeyboardOpenClose);
+                                hr = keyboardOpenCloseCompartment->SetValue(clientId, &varKeyboardOpenClose);
                             }
                         } else {
                             LOG_ERROR("ERROR: GetCompartment(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE) failed with 0x%0lx", hr);
@@ -261,7 +271,7 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
                             }
                             if (newMode != oldMode) {
                                 varKeyboardInputModeConversion.lVal = newMode;
-                                hr = keyboardInputModeConversionCompartment->SetValue(0, &varKeyboardInputModeConversion);
+                                hr = keyboardInputModeConversionCompartment->SetValue(clientId, &varKeyboardInputModeConversion);
                             }
                         } else {
                             LOG_ERROR("ERROR: GetValue() failed with 0x%0lx", hr);
@@ -292,6 +302,9 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
                 pCompartmentMgr->Release();
             }
             if (pThreadMgr) {
+                if (clientId != TF_CLIENTID_NULL) {
+                    pThreadMgr->Deactivate();
+                }
                 pThreadMgr->Release();
             }
             if (pProfileMgr) {

@@ -201,14 +201,28 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
                         }
                         VARIANT varKeyboardOpenClose;
                         VariantInit(&varKeyboardOpenClose);
-                        varKeyboardOpenClose.vt = VT_I4;
                         if (SUCCEEDED(hr)) {
-                            if (*g_pSharedData->keyboardOpenClose) {
-                                varKeyboardOpenClose.lVal = 1;
-                            } else {
-                                varKeyboardOpenClose.lVal = 0;
+                            VARIANT varCurrent;
+                            VariantInit(&varCurrent);
+                            bool needWrite = true;
+                            if (SUCCEEDED(keyboardOpenCloseCompartment->GetValue(&varCurrent)) &&
+                                (varCurrent.vt == VT_I4 || varCurrent.vt == VT_UI4)) {
+                                bool currentOpen = (varCurrent.lVal != 0);
+                                needWrite = (currentOpen != *g_pSharedData->keyboardOpenClose);
+                                if (!needWrite) {
+                                    LOG_INFO("OPENCLOSE already %d, skipping SetValue", currentOpen ? 1 : 0);
+                                }
                             }
-                            hr = keyboardOpenCloseCompartment->SetValue(0, &varKeyboardOpenClose);
+                            VariantClear(&varCurrent);
+                            if (needWrite) {
+                                varKeyboardOpenClose.vt = VT_I4;
+                                if (*g_pSharedData->keyboardOpenClose) {
+                                    varKeyboardOpenClose.lVal = 1;
+                                } else {
+                                    varKeyboardOpenClose.lVal = 0;
+                                }
+                                hr = keyboardOpenCloseCompartment->SetValue(0, &varKeyboardOpenClose);
+                            }
                         } else {
                             LOG_ERROR("ERROR: GetCompartment(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE) failed with 0x%0lx", hr);
                         }

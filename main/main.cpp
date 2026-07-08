@@ -459,7 +459,7 @@ int main(int argc, const char *argv[]) {
             err = ERR_QUERY_KEYBOARD_STATE;
         }
         }
-    } else if (!err) {
+    } else if (!err && args.verb == VERB_CURRENT) {
         if (pSharedData->langid && pSharedData->guidProfile) {
             FILE* outfile = stdout;
             if (args.outputFile) {

@@ -21,6 +21,7 @@ struct SharedData {
     std::optional<LANGID>   elseLangId;
     std::optional<GUID>     elseGuidProfile;
     Err                     err;
+    bool                    getKeyboardState;
 
     SharedData() :
         hForegroundWindow(NULL),
@@ -35,7 +36,8 @@ struct SharedData {
         ifGuidProfile(),
         elseLangId(),
         elseGuidProfile(),
-        err(OK)
+        err(OK),
+        getKeyboardState(false)
     {}
 };
 

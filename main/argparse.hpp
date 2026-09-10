@@ -12,6 +12,7 @@ struct CliArgs {
     const char*             ifKey;
     const char*             elseKey;
     const char*             outputFile;
+    bool                    getKeyboardState;
 
     CliArgs() :
         verb(VERB_CURRENT),
@@ -20,7 +21,8 @@ struct CliArgs {
         conversionMode(nullptr),
         ifKey(nullptr),
         elseKey(nullptr),
-        outputFile(nullptr)
+        outputFile(nullptr),
+        getKeyboardState(false)
     {}
 
     int parse(int argc, const char *argv[]);

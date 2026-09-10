@@ -10,7 +10,7 @@
 #include "version.hpp"
 
 int printUsage(const char* exeName) {
-    println("Usage: %s [LANGID-{GUID}] [-k|--keyboard <open|close>] [-c|--conversion-mode <alphamumeric|native[,...]>] [--if <LANGID-{GUID}>] [--else <LANGID-{GUID}>] [-o FILE]", exeName);
+    println("Usage: %s [LANGID-{GUID}] [-k|--keyboard <open|close>] [-c|--conversion-mode <alphanumeric|native[,...]>] [-g|--get-keyboard] [--if <LANGID-{GUID}>] [--else <LANGID-{GUID}>] [-o FILE]", exeName);
     println("       %s -l|--list", exeName);
     println("       %s", exeName);
     return ERR_INVALID_ARGUMENTS;
@@ -167,7 +167,25 @@ int main(int argc, const char *argv[]) {
 
     logInit("main");
 
-    // Open shared memory for data sharing, and also for ensuring only one instance is running.
+    // Use a named mutex for serialization (auto-released when process dies,
+    // unlike file mapping which can leak when hook DLL remains in target)
+    HANDLE hMutex = CreateMutexA(NULL, FALSE, "Local\\IMControlMutex");
+    if (hMutex == NULL) {
+        eprintln("%s: CreateMutex() failed with 0x%lx.", argv[0], GetLastError());
+        LOG_ERROR("CreateMutex() failed with 0x%lx", GetLastError());
+        err = ERR_CREATE_MUTEX;
+    }
+    if (!err) {
+        DWORD dwMutexResult = WaitForSingleObject(hMutex, 10000);
+        if (dwMutexResult != WAIT_OBJECT_0) {
+            eprintln("%s: Timed out waiting for mutex.", argv[0]);
+            LOG_ERROR("Timed out waiting for mutex");
+            CloseHandle(hMutex);
+            return ERR_MUTEX_TIMEOUT;
+        }
+    }
+
+    // Open shared memory for data sharing (no longer used as singleton guard)
     HANDLE hMapFile = CreateFileMapping(INVALID_HANDLE_VALUE,
                                         NULL,
                                         PAGE_READWRITE,
@@ -178,12 +196,6 @@ int main(int argc, const char *argv[]) {
         eprintln("%s: CreateFileMapping failed with 0x%lx.", argv[0], GetLastError());
         LOG_ERROR("CreateFileMapping failed with 0x%lx", GetLastError());
         err = ERR_CREATE_FILE_MAPPING;
-    }
-    if (!err) {
-        if (GetLastError() == ERROR_ALREADY_EXISTS) {
-            CloseHandle(hMapFile);
-            return ERR_ALREADY_RUNNING;
-        }
     }
 
     SharedData* pSharedData = NULL;
@@ -203,11 +215,16 @@ int main(int argc, const char *argv[]) {
         }
     }
 
-    HANDLE hEvent = CreateEventA(NULL, TRUE, FALSE, "Local\\IMControlDoneEvent");
-    if (hEvent == NULL) {
-        eprintln("%s: CreateEventA() failed with 0x%lx.", argv[0], GetLastError());
-        LOG_ERROR("CreateEventA() failed with 0x%lx", GetLastError());
-        err = ERR_CREATE_EVENT;
+    HANDLE hEvent = NULL;
+    if (!err) {
+        hEvent = CreateEventA(NULL, TRUE, FALSE, "Local\\IMControlDoneEvent");
+        if (hEvent == NULL) {
+            eprintln("%s: CreateEventA() failed with 0x%lx.", argv[0], GetLastError());
+            LOG_ERROR("CreateEventA() failed with 0x%lx", GetLastError());
+            err = ERR_CREATE_EVENT;
+        } else {
+            ResetEvent(hEvent);
+        }
     }
 
     HWND hForegroundWindow = NULL;
@@ -308,6 +325,8 @@ int main(int argc, const char *argv[]) {
         pSharedData->keyboardOpenClose = *args.keyboardOpenClose;
     }
 
+    pSharedData->getKeyboardState = args.getKeyboardState;
+
     if (args.conversionMode) {
         const char* mode = strtok((char*)args.conversionMode, ",");
         while (mode != NULL && !err) {
@@ -405,7 +424,7 @@ int main(int argc, const char *argv[]) {
 
     if (!err) {
         LOG_INFO("Waiting for injector to finish...");
-        DWORD dwWaitResult = WaitForSingleObject(hEvent, INFINITE);
+        DWORD dwWaitResult = WaitForSingleObject(hEvent, 10000);
         switch (dwWaitResult) {
             case WAIT_OBJECT_0:
                 LOG_INFO("Injector finished.");
@@ -414,6 +433,11 @@ int main(int argc, const char *argv[]) {
                     eprintln("%s: hook exited with code %d.", argv[0], err);
                     LOG_ERROR("injector exited with code %d", err);
                 }
+                break;
+            case WAIT_TIMEOUT:
+                eprintln("%s: Timed out waiting for injector (10s).", argv[0]);
+                LOG_ERROR("Timed out waiting for injector (10s)");
+                err = ERR_SEND_MESSAGE_TIMEOUT_TIMED_OUT;
                 break;
             case WAIT_FAILED:
                 eprintln("%s: WaitForSingleObject() failed with 0x%lx.", argv[0], GetLastError());
@@ -428,7 +452,36 @@ int main(int argc, const char *argv[]) {
         }
     }
 
-    if (!err) {
+    if (!err && args.getKeyboardState) {
+        if (pSharedData->keyboardOpenClose.has_value()) {
+            FILE* outfile = stdout;
+            if (args.outputFile) {
+                outfile = fopen(args.outputFile, "w");
+            }
+            if (!outfile && args.outputFile) {
+                eprintln("%s: fopen(\"%s\") failed with 0x%lx.", argv[0], args.outputFile, GetLastError());
+                LOG_ERROR("fopen(\"%s\") failed with 0x%lx", args.outputFile, GetLastError());
+            }
+            if (outfile) {
+                if (*pSharedData->keyboardOpenClose) {
+                    if (pSharedData->conversionModeNative.has_value() && *pSharedData->conversionModeNative) {
+                        fprintln(outfile, "open native");
+                    } else {
+                        fprintln(outfile, "open alphanumeric");
+                    }
+                } else {
+                    fprintln(outfile, "close");
+                }
+                if (args.outputFile) {
+                    fclose(outfile);
+            }
+        } else {
+            eprintln("%s: Failed to query keyboard state.", argv[0]);
+            LOG_ERROR("Failed to query keyboard state");
+            err = ERR_QUERY_KEYBOARD_STATE;
+        }
+        }
+    } else if (!err && args.verb == VERB_CURRENT) {
         if (pSharedData->langid && pSharedData->guidProfile) {
             FILE* outfile = stdout;
             if (args.outputFile) {
@@ -469,6 +522,10 @@ int main(int argc, const char *argv[]) {
     }
     if (hMapFile != NULL) {
         CloseHandle(hMapFile);
+    }
+    if (hMutex != NULL) {
+        ReleaseMutex(hMutex);
+        CloseHandle(hMutex);
     }
 
     LOG_INFO("Exiting with code %d", err);

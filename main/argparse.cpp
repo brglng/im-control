@@ -67,6 +67,9 @@ int CliArgs::parse(int argc, const char *argv[]) {
             } else {
                 return ERR_INVALID_ARGUMENTS;
             }
+        } else if (strcmp(argv[i], "-g") == 0 || strcmp(argv[i], "--get-keyboard") == 0) {
+            getKeyboardState = true;
+            verb = VERB_CURRENT;
         } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
             verb = VERB_HELP;
             return 0;
@@ -77,7 +80,7 @@ int CliArgs::parse(int argc, const char *argv[]) {
             return ERR_INVALID_ARGUMENTS;
         }
     }
-    if (key == nullptr && !keyboardOpenClose && conversionMode == nullptr) {
+    if (key == nullptr && !keyboardOpenClose && conversionMode == nullptr && !getKeyboardState) {
         verb = VERB_CURRENT;
     }
     return 0;

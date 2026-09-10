@@ -5,9 +5,53 @@
 #include "shared_data.hpp"
 #include "log.hpp"
 
+// TF_GetThreadMgr is exported by msctf.dll as a per-thread ThreadMgr singleton.
+// On Windows 11, CoCreateInstance(CLSID_TF_ThreadMgr) returns a NEW instance
+// instead of the per-thread singleton, so compartment writes don't trigger
+// OnChange notifications on sinks registered on the framework-provided instance.
+// TF_GetThreadMgr reliably returns the per-thread singleton on both Win10/Win11.
+typedef HRESULT(WINAPI* PFN_TF_GetThreadMgr)(ITfThreadMgr**);
+
+static ITfThreadMgr* GetThreadMgrSingleton() {
+    HMODULE hMsctf = GetModuleHandleW(L"msctf.dll");
+    if (!hMsctf) {
+        hMsctf = LoadLibraryW(L"msctf.dll");
+    }
+    if (!hMsctf) {
+        return nullptr;
+    }
+    auto pfn = (PFN_TF_GetThreadMgr)GetProcAddress(hMsctf, "TF_GetThreadMgr");
+    if (!pfn) {
+        return nullptr;
+    }
+    ITfThreadMgr* pThreadMgr = nullptr;
+    HRESULT hr = pfn(&pThreadMgr);
+    if (FAILED(hr) || !pThreadMgr) {
+        return nullptr;
+    }
+    return pThreadMgr;
+}
+
 static HANDLE g_hMapFile = NULL;
 static HANDLE g_hEvent = NULL;
 static SharedData* g_pSharedData = NULL;
+static bool g_isToOpenClose = false;
+
+static bool ReadToggleImeOnOpenClose() {
+    HKEY hKey;
+    if (RegOpenKeyExA(HKEY_CURRENT_USER, "Software\\Rime\\weasel", 0, KEY_READ, &hKey) != ERROR_SUCCESS)
+        return false;
+    char value[8] = {0};
+    DWORD valueSize = sizeof(value);
+    DWORD type = 0;
+    bool result = false;
+    if (RegQueryValueExA(hKey, "ToggleImeOnOpenClose", NULL, &type, (LPBYTE)value, &valueSize) == ERROR_SUCCESS
+        && type == REG_SZ) {
+        result = (_stricmp(value, "yes") == 0);
+    }
+    RegCloseKey(hKey);
+    return result;
+}
 
 extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCode, WPARAM wParam, LPARAM lParam) {
     if (nCode >= 0) {
@@ -24,6 +68,7 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
             ITfInputProcessorProfileMgr* pProfileMgr = NULL;
             ITfThreadMgr* pThreadMgr = NULL;
             ITfCompartmentMgr* pCompartmentMgr = nullptr;
+            TfClientId clientId = TF_CLIENTID_NULL;
 
             if (SUCCEEDED(hr)) {
                 LOG_INFO("COM initialized");
@@ -126,16 +171,69 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
                 g_pSharedData->guidProfile = prevProfile.guidProfile;
             }
 
-            if ((g_pSharedData->verb == VERB_SWITCH) && (g_pSharedData->keyboardOpenClose || g_pSharedData->conversionModeNative)) {
-                hr = CoCreateInstance(CLSID_TF_ThreadMgr,
-                                      NULL,
-                                      CLSCTX_INPROC_SERVER,
-                                      IID_ITfThreadMgr,
-                                      (void**)&pThreadMgr);
+            if (g_pSharedData->getKeyboardState) {
+                ITfThreadMgr* pThreadMgrGet = NULL;
+                ITfCompartmentMgr* pCompartmentMgrGet = nullptr;
+
+                pThreadMgrGet = GetThreadMgrSingleton();
+                HRESULT hrGet = pThreadMgrGet ? S_OK : E_FAIL;
+                if (SUCCEEDED(hrGet)) {
+                    hrGet = pThreadMgrGet->QueryInterface(IID_ITfCompartmentMgr, (void**)&pCompartmentMgrGet);
+                }
+
+                if (SUCCEEDED(hrGet)) {
+                    ITfCompartment* keyboardOpenCloseCompartment = nullptr;
+                    hrGet = pCompartmentMgrGet->GetCompartment(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE, &keyboardOpenCloseCompartment);
+                    if (SUCCEEDED(hrGet)) {
+                        VARIANT varKeyboardOpenClose;
+                        VariantInit(&varKeyboardOpenClose);
+                        hrGet = keyboardOpenCloseCompartment->GetValue(&varKeyboardOpenClose);
+                        if (SUCCEEDED(hrGet) && (varKeyboardOpenClose.vt == VT_I4 || varKeyboardOpenClose.vt == VT_UI4)) {
+                            g_pSharedData->keyboardOpenClose = (varKeyboardOpenClose.lVal != 0);
+                        }
+                        VariantClear(&varKeyboardOpenClose);
+                        keyboardOpenCloseCompartment->Release();
+                    }
+                }
+
+                if (SUCCEEDED(hrGet)) {
+                    ITfCompartment* conversionCompartment = nullptr;
+                    hrGet = pCompartmentMgrGet->GetCompartment(GUID_COMPARTMENT_KEYBOARD_INPUTMODE_CONVERSION, &conversionCompartment);
+                    if (SUCCEEDED(hrGet)) {
+                        VARIANT varConv;
+                        VariantInit(&varConv);
+                        hrGet = conversionCompartment->GetValue(&varConv);
+                        if (SUCCEEDED(hrGet) && (varConv.vt == VT_I4 || varConv.vt == VT_UI4)) {
+                            g_pSharedData->conversionModeNative = (varConv.lVal & TF_CONVERSIONMODE_NATIVE) != 0;
+                        }
+                        VariantClear(&varConv);
+                        conversionCompartment->Release();
+                    }
+                }
+
+                if (pCompartmentMgrGet) {
+                    pCompartmentMgrGet->Release();
+                }
+                if (pThreadMgrGet) {
+                    pThreadMgrGet->Release();
+                }
+                // Intentionally do not modify `hr` here: get-keyboard failures should not override prior errors.
+            }
+
+            if ((g_pSharedData->verb == VERB_SWITCH) && !g_pSharedData->getKeyboardState && (g_pSharedData->keyboardOpenClose || g_pSharedData->conversionModeNative)) {
+                pThreadMgr = GetThreadMgrSingleton();
+                hr = pThreadMgr ? S_OK : E_FAIL;
                 if (SUCCEEDED(hr)) {
                     hr = pThreadMgr->QueryInterface(IID_ITfCompartmentMgr, (void**)&pCompartmentMgr);
                 } else {
-                    LOG_ERROR("ERROR: CoCreateInstance(CLSID_TF_ThreadMgr) failed with 0x%0lx", hr);
+                    LOG_ERROR("ERROR: GetThreadMgrSingleton() failed");
+                }
+
+                if (SUCCEEDED(hr)) {
+                    hr = pThreadMgr->Activate(&clientId);
+                    if (FAILED(hr)) {
+                        LOG_ERROR("ERROR: ITfThreadMgr::Activate() failed with 0x%0lx", hr);
+                    }
                 }
 
                 if (SUCCEEDED(hr)) {
@@ -149,14 +247,28 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
                         }
                         VARIANT varKeyboardOpenClose;
                         VariantInit(&varKeyboardOpenClose);
-                        varKeyboardOpenClose.vt = VT_I4;
                         if (SUCCEEDED(hr)) {
-                            if (*g_pSharedData->keyboardOpenClose) {
-                                varKeyboardOpenClose.lVal = 1;
-                            } else {
-                                varKeyboardOpenClose.lVal = 0;
+                            VARIANT varCurrent;
+                            VariantInit(&varCurrent);
+                            bool needWrite = true;
+                            if (SUCCEEDED(keyboardOpenCloseCompartment->GetValue(&varCurrent)) &&
+                                (varCurrent.vt == VT_I4 || varCurrent.vt == VT_UI4)) {
+                                bool currentOpen = (varCurrent.lVal != 0);
+                                needWrite = (currentOpen != *g_pSharedData->keyboardOpenClose);
+                                if (!needWrite) {
+                                    LOG_INFO("OPENCLOSE already %d, skipping SetValue", currentOpen ? 1 : 0);
+                                }
                             }
-                            hr = keyboardOpenCloseCompartment->SetValue(0, &varKeyboardOpenClose);
+                            VariantClear(&varCurrent);
+                            if (needWrite) {
+                                varKeyboardOpenClose.vt = VT_I4;
+                                if (*g_pSharedData->keyboardOpenClose) {
+                                    varKeyboardOpenClose.lVal = 1;
+                                } else {
+                                    varKeyboardOpenClose.lVal = 0;
+                                }
+                                hr = keyboardOpenCloseCompartment->SetValue(clientId, &varKeyboardOpenClose);
+                            }
                         } else {
                             LOG_ERROR("ERROR: GetCompartment(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE) failed with 0x%0lx", hr);
                         }
@@ -186,7 +298,10 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
                             LOG_ERROR("ERROR: GetCompartment(GUID_COMPARTMENT_KEYBOARD_INPUTMODE_CONVERSION) failed with 0x%0lx", hr);
                         }
                         if (SUCCEEDED(hr)) {
-                            DWORD oldMode = varKeyboardInputModeConversion.lVal;
+                            DWORD oldMode = 0;
+                            if (varKeyboardInputModeConversion.vt == VT_I4 || varKeyboardInputModeConversion.vt == VT_UI4) {
+                                oldMode = varKeyboardInputModeConversion.lVal;
+                            }
                             DWORD newMode = oldMode;
                             if  (*g_pSharedData->conversionModeNative) {
                                 newMode |= TF_CONVERSIONMODE_NATIVE;
@@ -194,8 +309,9 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
                                 newMode &= ~TF_CONVERSIONMODE_NATIVE;
                             }
                             if (newMode != oldMode) {
+                                varKeyboardInputModeConversion.vt = VT_I4;
                                 varKeyboardInputModeConversion.lVal = newMode;
-                                hr = keyboardInputModeConversionCompartment->SetValue(0, &varKeyboardInputModeConversion);
+                                hr = keyboardInputModeConversionCompartment->SetValue(clientId, &varKeyboardInputModeConversion);
                             }
                         } else {
                             LOG_ERROR("ERROR: GetValue() failed with 0x%0lx", hr);
@@ -206,6 +322,25 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
                         VariantClear(&varKeyboardInputModeConversion);
                         if (keyboardInputModeConversionCompartment) {
                             keyboardInputModeConversionCompartment->Release();
+                        }
+                    }
+
+                    if (g_isToOpenClose && g_pSharedData->conversionModeNative && !g_pSharedData->keyboardOpenClose) {
+                        ITfCompartment* ocCompartment = nullptr;
+                        HRESULT hrOC = pCompartmentMgr->GetCompartment(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE, &ocCompartment);
+                        if (SUCCEEDED(hrOC)) {
+                            VARIANT varOC;
+                            VariantInit(&varOC);
+                            hrOC = ocCompartment->GetValue(&varOC);
+                            if (SUCCEEDED(hrOC) && (varOC.vt == VT_I4 || varOC.vt == VT_UI4) && varOC.lVal == 0) {
+                                VARIANT varSet;
+                                VariantInit(&varSet);
+                                varSet.vt = VT_I4;
+                                varSet.lVal = 1;
+                                ocCompartment->SetValue(clientId, &varSet);
+                            }
+                            VariantClear(&varOC);
+                            ocCompartment->Release();
                         }
                     }
                 } else {
@@ -226,6 +361,9 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
                 pCompartmentMgr->Release();
             }
             if (pThreadMgr) {
+                if (clientId != TF_CLIENTID_NULL) {
+                    pThreadMgr->Deactivate();
+                }
                 pThreadMgr->Release();
             }
             if (pProfileMgr) {
@@ -249,7 +387,7 @@ INT APIENTRY DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
 #ifdef _WIN64
             logInit("hook64");
 #else
-            // logInit("hook32");
+            logInit("hook32");
 #endif
             g_hMapFile = OpenFileMapping(FILE_MAP_ALL_ACCESS, FALSE, SHARED_DATA_NAME);
             if (g_hMapFile == NULL) {
@@ -277,6 +415,8 @@ INT APIENTRY DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
                 g_hMapFile = NULL;
                 return FALSE;
             }
+
+            g_isToOpenClose = ReadToggleImeOnOpenClose();
 
             break;
         case DLL_PROCESS_DETACH:

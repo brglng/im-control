@@ -35,7 +35,7 @@ static ITfThreadMgr* GetThreadMgrSingleton() {
 static HANDLE g_hMapFile = NULL;
 static HANDLE g_hEvent = NULL;
 static SharedData* g_pSharedData = NULL;
-static bool g_isToOpenClose = false;
+static bool g_isWeaselToggleImeOnOpenClose = false;
 
 static bool ReadToggleImeOnOpenClose() {
     HKEY hKey;
@@ -248,19 +248,19 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
                         VARIANT varKeyboardOpenClose;
                         VariantInit(&varKeyboardOpenClose);
                         if (SUCCEEDED(hr)) {
-                            VARIANT varCurrent;
-                            VariantInit(&varCurrent);
-                            bool needWrite = true;
-                            if (SUCCEEDED(keyboardOpenCloseCompartment->GetValue(&varCurrent)) &&
-                                (varCurrent.vt == VT_I4 || varCurrent.vt == VT_UI4)) {
-                                bool currentOpen = (varCurrent.lVal != 0);
-                                needWrite = (currentOpen != *g_pSharedData->keyboardOpenClose);
-                                if (!needWrite) {
-                                    LOG_INFO("OPENCLOSE already %d, skipping SetValue", currentOpen ? 1 : 0);
-                                }
-                            }
-                            VariantClear(&varCurrent);
-                            if (needWrite) {
+                            // VARIANT varCurrent;
+                            // VariantInit(&varCurrent);
+                            // bool needWrite = true;
+                            // if (SUCCEEDED(keyboardOpenCloseCompartment->GetValue(&varCurrent)) &&
+                            //     (varCurrent.vt == VT_I4 || varCurrent.vt == VT_UI4)) {
+                            //     bool currentOpen = (varCurrent.lVal != 0);
+                            //     needWrite = (currentOpen != *g_pSharedData->keyboardOpenClose);
+                            //     if (!needWrite) {
+                            //         LOG_INFO("OPENCLOSE already %d, skipping SetValue", currentOpen ? 1 : 0);
+                            //     }
+                            // }
+                            // VariantClear(&varCurrent);
+                            // if (needWrite) {
                                 varKeyboardOpenClose.vt = VT_I4;
                                 if (*g_pSharedData->keyboardOpenClose) {
                                     varKeyboardOpenClose.lVal = 1;
@@ -268,7 +268,7 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
                                     varKeyboardOpenClose.lVal = 0;
                                 }
                                 hr = keyboardOpenCloseCompartment->SetValue(clientId, &varKeyboardOpenClose);
-                            }
+                            // }
                         } else {
                             LOG_ERROR("ERROR: GetCompartment(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE) failed with 0x%0lx", hr);
                         }
@@ -308,11 +308,11 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
                             } else {
                                 newMode &= ~TF_CONVERSIONMODE_NATIVE;
                             }
-                            if (newMode != oldMode) {
+                            // if (newMode != oldMode) {
                                 varKeyboardInputModeConversion.vt = VT_I4;
                                 varKeyboardInputModeConversion.lVal = newMode;
                                 hr = keyboardInputModeConversionCompartment->SetValue(clientId, &varKeyboardInputModeConversion);
-                            }
+                            // }
                         } else {
                             LOG_ERROR("ERROR: GetValue() failed with 0x%0lx", hr);
                         }
@@ -325,24 +325,24 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
                         }
                     }
 
-                    if (g_isToOpenClose && g_pSharedData->conversionModeNative && !g_pSharedData->keyboardOpenClose) {
-                        ITfCompartment* ocCompartment = nullptr;
-                        HRESULT hrOC = pCompartmentMgr->GetCompartment(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE, &ocCompartment);
-                        if (SUCCEEDED(hrOC)) {
-                            VARIANT varOC;
-                            VariantInit(&varOC);
-                            hrOC = ocCompartment->GetValue(&varOC);
-                            if (SUCCEEDED(hrOC) && (varOC.vt == VT_I4 || varOC.vt == VT_UI4) && varOC.lVal == 0) {
-                                VARIANT varSet;
-                                VariantInit(&varSet);
-                                varSet.vt = VT_I4;
-                                varSet.lVal = 1;
-                                ocCompartment->SetValue(clientId, &varSet);
-                            }
-                            VariantClear(&varOC);
-                            ocCompartment->Release();
-                        }
-                    }
+                    // if (g_isWeaselToggleImeOnOpenClose && g_pSharedData->conversionModeNative && !g_pSharedData->keyboardOpenClose) {
+                    //     ITfCompartment* ocCompartment = nullptr;
+                    //     HRESULT hrOC = pCompartmentMgr->GetCompartment(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE, &ocCompartment);
+                    //     if (SUCCEEDED(hrOC)) {
+                    //         VARIANT varOC;
+                    //         VariantInit(&varOC);
+                    //         hrOC = ocCompartment->GetValue(&varOC);
+                    //         if (SUCCEEDED(hrOC) && (varOC.vt == VT_I4 || varOC.vt == VT_UI4) && varOC.lVal == 0) {
+                    //             VARIANT varSet;
+                    //             VariantInit(&varSet);
+                    //             varSet.vt = VT_I4;
+                    //             varSet.lVal = 1;
+                    //             ocCompartment->SetValue(clientId, &varSet);
+                    //         }
+                    //         VariantClear(&varOC);
+                    //         ocCompartment->Release();
+                    //     }
+                    // }
                 } else {
                     LOG_ERROR("ERROR: QueryInterface(IID_ITfCompartmentMgr) failed with 0x%0lx", hr);
                 }
@@ -416,7 +416,7 @@ INT APIENTRY DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
                 return FALSE;
             }
 
-            g_isToOpenClose = ReadToggleImeOnOpenClose();
+            g_isWeaselToggleImeOnOpenClose = ReadToggleImeOnOpenClose();
 
             break;
         case DLL_PROCESS_DETACH:

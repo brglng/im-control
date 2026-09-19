@@ -36,7 +36,12 @@ cmake --build build --config RelWithDebInfo
 cmake --install build --prefix bin --config RelWithDebInfo
 ```
 
-After building, you can place `im-control.exe` in PATH or a fixed path. The helper DLLs listed below must remain in the same directory as the executable.
+After building, the following executables are produced:
+
+- `im-control.exe`: console-subsystem build. It uses the inherited standard streams and is recommended for shells and scripts.
+- `im-controlw.exe`: GUI-subsystem build. It creates a private console on demand and shows it only when it produces console output.
+
+The helper DLLs listed below must remain in the same directory as the executable.
 
 ## Usage
 
@@ -49,7 +54,7 @@ im-control -h|--help
 
 Before running, please make sure the following files are in the same directory:
 
-- `im-control.exe`
+- `im-control.exe` or `im-controlw.exe`
 - `im-control-injector-32.dll`
 - `im-control-injector-64.dll`
 - `im-control-hook-32.dll`

@@ -24,6 +24,12 @@ inline constexpr const char* level_to_string(LogLevel level) {
 
 void logInit(const char* name);
 void log(LogLevel level, const char* format, ...);
+void consoleShow();
+void consoleFree();
+void consolePrint(const char* format, ...);
+void consolePrintW(const wchar_t* format, ...);
+void consoleError(const char* format, ...);
+void consoleFilePrint(FILE* file, const char* format, ...);
 
 #define LOG(file, line, func, level, format, ...) do { \
     struct tm localTime; \
@@ -49,8 +55,8 @@ void log(LogLevel level, const char* format, ...);
 #define LOG_WARN(format, ...)  LOG(__FILE__, __LINE__, __FUNCTION__, LOG_LEVEL_WARN,  format, ##__VA_ARGS__)
 #define LOG_ERROR(format, ...) LOG(__FILE__, __LINE__, __FUNCTION__, LOG_LEVEL_ERROR, format, ##__VA_ARGS__)
 
-#define println(format, ...) printf(format "\n", ##__VA_ARGS__)
-#define fprintln(file, format, ...) fprintf(file, format "\n", ##__VA_ARGS__)
-#define eprintln(format, ...) fprintf(stderr, format "\n", ##__VA_ARGS__)
+#define println(format, ...) consolePrint(format "\n", ##__VA_ARGS__)
+#define fprintln(file, format, ...) consoleFilePrint(file, format "\n", ##__VA_ARGS__)
+#define eprintln(format, ...) consoleError(format "\r\n", ##__VA_ARGS__)
 
 #endif /* LOG_HPP */

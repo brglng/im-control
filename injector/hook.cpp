@@ -248,19 +248,19 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
                         VARIANT varKeyboardOpenClose;
                         VariantInit(&varKeyboardOpenClose);
                         if (SUCCEEDED(hr)) {
-                            // VARIANT varCurrent;
-                            // VariantInit(&varCurrent);
-                            // bool needWrite = true;
-                            // if (SUCCEEDED(keyboardOpenCloseCompartment->GetValue(&varCurrent)) &&
-                            //     (varCurrent.vt == VT_I4 || varCurrent.vt == VT_UI4)) {
-                            //     bool currentOpen = (varCurrent.lVal != 0);
-                            //     needWrite = (currentOpen != *g_pSharedData->keyboardOpenClose);
-                            //     if (!needWrite) {
-                            //         LOG_INFO("OPENCLOSE already %d, skipping SetValue", currentOpen ? 1 : 0);
-                            //     }
-                            // }
-                            // VariantClear(&varCurrent);
-                            // if (needWrite) {
+                            VARIANT varCurrent;
+                            VariantInit(&varCurrent);
+                            bool needWrite = true;
+                            if (SUCCEEDED(keyboardOpenCloseCompartment->GetValue(&varCurrent)) &&
+                                (varCurrent.vt == VT_I4 || varCurrent.vt == VT_UI4)) {
+                                bool currentOpen = (varCurrent.lVal != 0);
+                                needWrite = (currentOpen != *g_pSharedData->keyboardOpenClose);
+                                if (!needWrite) {
+                                    LOG_INFO("OPENCLOSE already %d, skipping SetValue", currentOpen ? 1 : 0);
+                                }
+                            }
+                            VariantClear(&varCurrent);
+                            if (needWrite) {
                                 varKeyboardOpenClose.vt = VT_I4;
                                 if (*g_pSharedData->keyboardOpenClose) {
                                     varKeyboardOpenClose.lVal = 1;
@@ -268,7 +268,7 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
                                     varKeyboardOpenClose.lVal = 0;
                                 }
                                 hr = keyboardOpenCloseCompartment->SetValue(clientId, &varKeyboardOpenClose);
-                            // }
+                            }
                         } else {
                             LOG_ERROR("ERROR: GetCompartment(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE) failed with 0x%0lx", hr);
                         }
@@ -308,11 +308,11 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCod
                             } else {
                                 newMode &= ~TF_CONVERSIONMODE_NATIVE;
                             }
-                            // if (newMode != oldMode) {
+                            if (newMode != oldMode) {
                                 varKeyboardInputModeConversion.vt = VT_I4;
                                 varKeyboardInputModeConversion.lVal = newMode;
                                 hr = keyboardInputModeConversionCompartment->SetValue(clientId, &varKeyboardInputModeConversion);
-                            // }
+                            }
                         } else {
                             LOG_ERROR("ERROR: GetValue() failed with 0x%0lx", hr);
                         }

@@ -1,4 +1,3 @@
-#include <clocale>
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -10,9 +9,53 @@
 #include "version.hpp"
 
 int printUsage(const char* exeName) {
-    println("Usage: %s [LANGID-{GUID}] [-k|--keyboard <open|close>] [-c|--conversion-mode <alphanumeric|native[,...]>] [-g|--get-keyboard] [--if <LANGID-{GUID}>] [--else <LANGID-{GUID}>] [-o FILE]", exeName);
-    println("       %s -l|--list", exeName);
-    println("       %s", exeName);
+    const char* programName = exeName;
+    for (const char* p = exeName; *p != '\0'; ++p) {
+        if (*p == '\\' || *p == '/') {
+            programName = p + 1;
+        }
+    }
+
+    println("Usage:\n"
+            "  %s [LANGID-{GUID}] [options]\n"
+            "  %s -l | --list\n"
+            "  %s -V | --version\n"
+            "  %s -h | --help\n"
+            "\n"
+            "Arguments:\n"
+            "  LANGID-{GUID}\n"
+            "      Switch to the specified input method profile.\n"
+            "\n"
+            "Options:\n"
+            "  -k, --keyboard <open|close>\n"
+            "      Set the keyboard or IME open state.\n"
+            "  -c, --conversion-mode <alphanumeric|native[,...]>\n"
+            "      Set the conversion mode. 'native' selects native input,\n"
+            "      while 'alphanumeric' selects half-width English input.\n"
+            "  -g, --get-keyboard\n"
+            "      Show the current keyboard open state and conversion mode.\n"
+            "  --if LANGID-{GUID}\n"
+            "      Apply the positional profile only when the current profile\n"
+            "      matches this key.\n"
+            "  --else LANGID-{GUID}\n"
+            "      Apply this profile when the --if condition does not match.\n"
+            "  -o FILE\n"
+            "      Write query output to FILE instead of standard output.\n"
+            "  -l, --list\n"
+            "      List enabled keyboard input method profiles.\n"
+            "  -V, --version\n"
+            "      Show the program version.\n"
+            "  -h, --help\n"
+            "      Show this help message.\n"
+            "\n"
+            "With no arguments, show the current input method profile.\n"
+            "Options can be combined, for example:\n"
+            "  %s -k open -c native",
+            programName,
+            programName,
+            programName,
+            programName,
+            programName);
     return ERR_INVALID_ARGUMENTS;
 }
 
@@ -70,7 +113,7 @@ int listInputMethods(const char* argv0) {
                 BSTR desc = NULL;
                 LCIDToLocaleName(MAKELCID(profile.langid, SORT_DEFAULT), langName, LOCALE_NAME_MAX_LENGTH, 0);
                 pProfiles->GetLanguageProfileDescription(profile.clsid, profile.langid, profile.guidProfile, &desc);
-                printf("%04X-{%08lX-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X} %ls%s%ls\n",
+                consolePrintW(L"%04X-{%08lX-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X} %ls%ls%ls\r\n",
                     profile.langid,
                     profile.guidProfile.Data1,
                     profile.guidProfile.Data2,
@@ -80,9 +123,8 @@ int listInputMethods(const char* argv0) {
                     profile.guidProfile.Data4[4], profile.guidProfile.Data4[5],
                     profile.guidProfile.Data4[6], profile.guidProfile.Data4[7],
                     langName,
-                    desc ? ": " : "",
-                    desc ? desc : L""
-                );
+                    desc ? L": " : L"",
+                    desc ? desc : L"");
                 SysFreeString(desc);
             }
         }
@@ -533,28 +575,10 @@ int main(int argc, const char *argv[]) {
     return err;
 }
 
+#ifdef IM_CONTROL_GUI
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
-    BOOL hasConsole = AttachConsole(ATTACH_PARENT_PROCESS);
-    if (hasConsole) {
-        freopen("CONOUT$", "w", stdout);
-        freopen("CONOUT$", "w", stderr);
-        freopen("CONIN$", "r", stdin);
-    }
-
-    if (GetConsoleOutputCP() == CP_UTF8) {
-        setlocale(LC_CTYPE, ".UTF8");
-    } else {
-        setlocale(LC_CTYPE, "");
-    }
-
     int ret = main(__argc, const_cast<const char**>(__argv));
-
-    if (hasConsole) {
-        fclose(stdout);
-        fclose(stderr);
-        fclose(stdin);
-        FreeConsole();
-    }
-
+    consoleFree();
     return ret;
 }
+#endif

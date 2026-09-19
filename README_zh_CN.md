@@ -34,7 +34,12 @@ cmake --build build --config RelWithDebInfo
 cmake --install build --prefix bin --config RelWithDebInfo
 ```
 
-编译完成后，可将 `im-control.exe` 放于 PATH 中或固定路径。下面列出的辅助 DLL 必须与可执行文件放在同一目录。
+编译完成后会生成以下两个可执行文件：
+
+- `im-control.exe`：Console 子系统版本，使用继承的标准输入输出，适合 Shell 和脚本调用。
+- `im-controlw.exe`：GUI 子系统版本，启动时创建隐藏的私有 Console，仅在产生控制台输出时显示。
+
+下面列出的辅助 DLL 必须与可执行文件放在同一目录。
 
 ## 用法
 
@@ -47,7 +52,7 @@ im-control -h|--help
 
 在运行前，请确保以下文件在同一目录下：
 
-- `im-control.exe`
+- `im-control.exe` 或 `im-controlw.exe`
 - `im-control-injector-32.dll`
 - `im-control-injector-64.dll`
 - `im-control-hook-32.dll`

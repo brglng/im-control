@@ -1,36 +1,19 @@
 #include <cstdio>
 #include <cstdlib>
+#include <exception>
 #include <windows.h>
 #include <msctf.h>
-#include "shared_data.hpp"
+#include "com/com_initializer.hpp"
+#include "com/enum_tf_input_processor_profiles.hpp"
+#include "com/scoped_variant.hpp"
+#include "com/tf_compartment.hpp"
+#include "com/tf_compartment_mgr.hpp"
+#include "com/tf_input_processor_profile_mgr.hpp"
+#include "com/tf_thread_mgr.hpp"
+#include "com_error.hpp"
 #include "log.hpp"
-
-// TF_GetThreadMgr is exported by msctf.dll as a per-thread ThreadMgr singleton.
-// On Windows 11, CoCreateInstance(CLSID_TF_ThreadMgr) returns a NEW instance
-// instead of the per-thread singleton, so compartment writes don't trigger
-// OnChange notifications on sinks registered on the framework-provided instance.
-// TF_GetThreadMgr reliably returns the per-thread singleton on both Win10/Win11.
-typedef HRESULT(WINAPI* PFN_TF_GetThreadMgr)(ITfThreadMgr**);
-
-static ITfThreadMgr* GetThreadMgrSingleton() {
-    HMODULE hMsctf = GetModuleHandleW(L"msctf.dll");
-    if (!hMsctf) {
-        hMsctf = LoadLibraryW(L"msctf.dll");
-    }
-    if (!hMsctf) {
-        return nullptr;
-    }
-    auto pfn = (PFN_TF_GetThreadMgr)GetProcAddress(hMsctf, "TF_GetThreadMgr");
-    if (!pfn) {
-        return nullptr;
-    }
-    ITfThreadMgr* pThreadMgr = nullptr;
-    HRESULT hr = pfn(&pThreadMgr);
-    if (FAILED(hr) || !pThreadMgr) {
-        return nullptr;
-    }
-    return pThreadMgr;
-}
+#include "shared_data.hpp"
+#include "winapi_error.hpp"
 
 static HANDLE g_hMapFile = NULL;
 static HANDLE g_hEvent = NULL;
@@ -53,324 +36,189 @@ static bool ReadToggleImeOnOpenClose() {
     return result;
 }
 
+// Applies the requested input method state inside the hooked thread.
+// COM and Win32 failures are reported by throwing; the hook callback catches
+// them at the boundary and returns a failure code without signalling the
+// done event, preserving the original protocol.
+static void applyInputMethodState() {
+    ComInitializer comInitializer;
+    LOG_INFO("COM initialized");
+
+    TfInputProcessorProfileMgr profileMgr;
+    TF_INPUTPROCESSORPROFILE prevProfile = profileMgr.getActiveProfile(GUID_TFCAT_TIP_KEYBOARD);
+
+    if (g_pSharedData->verb == VERB_SWITCH) {
+        LANGID targetLangId = 0;
+        const GUID* targetGuidProfile = nullptr;
+        if (g_pSharedData->ifLangId && g_pSharedData->ifGuidProfile) {
+            if (*g_pSharedData->ifLangId == prevProfile.langid &&
+                IsEqualGUID(*g_pSharedData->ifGuidProfile, prevProfile.guidProfile)) {
+                targetLangId = g_pSharedData->langid ? *g_pSharedData->langid : 0;
+                targetGuidProfile = g_pSharedData->guidProfile ? &(*g_pSharedData->guidProfile) : nullptr;
+            } else if (g_pSharedData->elseLangId && g_pSharedData->elseGuidProfile) {
+                targetLangId = *g_pSharedData->elseLangId;
+                targetGuidProfile = &(*g_pSharedData->elseGuidProfile);
+            } else {
+                LOG_INFO("Condition not met, skipping profile switch");
+            }
+        } else {
+            if (g_pSharedData->langid && g_pSharedData->guidProfile) {
+                targetLangId = *g_pSharedData->langid;
+                targetGuidProfile = &(*g_pSharedData->guidProfile);
+            } else {
+                LOG_INFO("No target profile specified, skipping profile switch");
+            }
+        }
+
+        LOG_INFO("targetLangId=0x%04X", targetLangId);
+        if (targetGuidProfile) {
+            LOG_INFO("targetGuidProfile = {%08lX-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}",
+                     targetGuidProfile->Data1,
+                     targetGuidProfile->Data2,
+                     targetGuidProfile->Data3,
+                     targetGuidProfile->Data4[0], targetGuidProfile->Data4[1],
+                     targetGuidProfile->Data4[2], targetGuidProfile->Data4[3],
+                     targetGuidProfile->Data4[4], targetGuidProfile->Data4[5],
+                     targetGuidProfile->Data4[6], targetGuidProfile->Data4[7]);
+        } else {
+            LOG_INFO("targetGuidProfile = nullptr");
+        }
+
+        if (targetGuidProfile) {
+            EnumTfInputProcessorProfiles enumerator = profileMgr.enumProfiles(0);
+            TF_INPUTPROCESSORPROFILE profile = {};
+            while (enumerator.next(profile)) {
+                if (!IsEqualGUID(profile.catid, GUID_TFCAT_TIP_KEYBOARD) || !(profile.dwFlags & TF_IPP_FLAG_ENABLED)) {
+                    continue;
+                }
+                if (targetLangId == 0 || profile.langid != targetLangId ||
+                    !IsEqualGUID(profile.guidProfile, *targetGuidProfile)) {
+                    continue;
+                }
+                LOG_INFO("guidProfile = {%08lX-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}",
+                         profile.guidProfile.Data1,
+                         profile.guidProfile.Data2,
+                         profile.guidProfile.Data3,
+                         profile.guidProfile.Data4[0], profile.guidProfile.Data4[1],
+                         profile.guidProfile.Data4[2], profile.guidProfile.Data4[3],
+                         profile.guidProfile.Data4[4], profile.guidProfile.Data4[5],
+                         profile.guidProfile.Data4[6], profile.guidProfile.Data4[7]);
+                profileMgr.activateProfile(profile.dwProfileType,
+                                           profile.langid,
+                                           profile.clsid,
+                                           profile.guidProfile,
+                                           profile.hkl,
+                                           TF_IPPMF_FORPROCESS | TF_IPPMF_DONTCARECURRENTINPUTLANGUAGE);
+                LOG_INFO("Profile switched successfully");
+                break;
+            }
+        }
+    }
+
+    g_pSharedData->langid = prevProfile.langid;
+    g_pSharedData->guidProfile = prevProfile.guidProfile;
+
+    if (g_pSharedData->getKeyboardState) {
+        // Failures while querying the compartments are logged but do not fail the hook.
+        try {
+            TfThreadMgr threadMgr = TfThreadMgr::getThreadMgrSingleton();
+            TfCompartmentMgr compartmentMgr = threadMgr.compartmentMgr();
+
+            TfCompartment keyboardOpenCloseCompartment =
+                compartmentMgr.getCompartment(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE);
+            ScopedVariant keyboardOpenClose = keyboardOpenCloseCompartment.getValue();
+            if (keyboardOpenClose.isInt()) {
+                g_pSharedData->keyboardOpenClose = (keyboardOpenClose.asInt() != 0);
+            }
+
+            TfCompartment conversionCompartment =
+                compartmentMgr.getCompartment(GUID_COMPARTMENT_KEYBOARD_INPUTMODE_CONVERSION);
+            ScopedVariant conversionMode = conversionCompartment.getValue();
+            if (conversionMode.isInt()) {
+                g_pSharedData->conversionModeNative = (conversionMode.asInt() & TF_CONVERSIONMODE_NATIVE) != 0;
+            }
+        } catch (const std::exception& e) {
+            LOG_ERROR("ERROR: Failed to query keyboard state: %s", e.what());
+        }
+    }
+
+    if ((g_pSharedData->verb == VERB_SWITCH) && !g_pSharedData->getKeyboardState &&
+        (g_pSharedData->keyboardOpenClose || g_pSharedData->conversionModeNative)) {
+        TfThreadMgr threadMgr = TfThreadMgr::getThreadMgrSingleton();
+        TfCompartmentMgr compartmentMgr = threadMgr.compartmentMgr();
+        TfClientId clientId = threadMgr.activate();
+
+        if (g_pSharedData->keyboardOpenClose) {
+            LOG_INFO("keyboardOpenClose = %d", *g_pSharedData->keyboardOpenClose);
+            TfCompartment keyboardOpenCloseCompartment =
+                compartmentMgr.getCompartment(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE);
+            bool needWrite = true;
+            ScopedVariant currentValue;
+            try {
+                currentValue = keyboardOpenCloseCompartment.getValue();
+            } catch (const COMError& e) {
+                LOG_ERROR("ERROR: %s", e.what());
+            }
+            if (currentValue.isInt()) {
+                bool currentOpen = (currentValue.asInt() != 0);
+                needWrite = (currentOpen != *g_pSharedData->keyboardOpenClose);
+                if (!needWrite) {
+                    LOG_INFO("OPENCLOSE already %d, skipping SetValue", currentOpen ? 1 : 0);
+                }
+            }
+            if (needWrite) {
+                keyboardOpenCloseCompartment.setIntValue(clientId, *g_pSharedData->keyboardOpenClose ? 1 : 0);
+            }
+        }
+
+        if (g_pSharedData->conversionModeNative) {
+            LOG_INFO("conversionModeNative = %d", *g_pSharedData->conversionModeNative);
+            TfCompartment conversionCompartment =
+                compartmentMgr.getCompartment(GUID_COMPARTMENT_KEYBOARD_INPUTMODE_CONVERSION);
+            ScopedVariant currentValue = conversionCompartment.getValue();
+            LONG oldMode = currentValue.isInt() ? currentValue.asInt() : 0;
+            LONG newMode = oldMode;
+            if (*g_pSharedData->conversionModeNative) {
+                newMode |= TF_CONVERSIONMODE_NATIVE;
+            } else {
+                newMode &= ~TF_CONVERSIONMODE_NATIVE;
+            }
+            if (newMode != oldMode) {
+                conversionCompartment.setIntValue(clientId, newMode);
+            }
+        }
+    }
+
+    if (!SetEvent(g_hEvent)) {
+        LOG_ERROR("SetEvent() failed with 0x%lx", GetLastError());
+        g_pSharedData->err = ERR_SET_EVENT;
+    } else {
+        LOG_INFO("SetEvent() succeeded");
+    }
+}
+
 extern "C" __declspec(dllexport) LRESULT CALLBACK IMControl_WndProcHook(int nCode, WPARAM wParam, LPARAM lParam) {
     if (nCode >= 0) {
         CWPSTRUCT* cwp = (CWPSTRUCT*)lParam;
         if (cwp != NULL && g_pSharedData && cwp->hwnd == g_pSharedData->hForegroundWindow && cwp->message == g_pSharedData->uMsg) {
             LOG_INFO("WndProcHook: nCode=0x%x, hwnd=%p, message=0x%x", nCode, cwp->hwnd, cwp->message);
-            HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
-            if (FAILED(hr)) {
-	            LOG_ERROR("ERROR: CoInitialize() failed with 0x%0lx", hr);
-                return FALSE;
-            }
 
-            bool bCOMInitializedByMe = (hr == S_OK);
-            ITfInputProcessorProfileMgr* pProfileMgr = NULL;
-            ITfThreadMgr* pThreadMgr = NULL;
-            ITfCompartmentMgr* pCompartmentMgr = nullptr;
-            TfClientId clientId = TF_CLIENTID_NULL;
-
-            if (SUCCEEDED(hr)) {
-                LOG_INFO("COM initialized");
-                hr = CoCreateInstance(CLSID_TF_InputProcessorProfiles,
-                                      NULL,
-                                      CLSCTX_ALL,
-                                      IID_ITfInputProcessorProfileMgr,
-                                      (void**)&pProfileMgr);
-            }
-
-            TF_INPUTPROCESSORPROFILE prevProfile;
-            if (SUCCEEDED(hr)) {
-                hr = pProfileMgr->GetActiveProfile(GUID_TFCAT_TIP_KEYBOARD, &prevProfile);
-            }
-
-            if (g_pSharedData->verb == VERB_SWITCH) {
-                if (SUCCEEDED(hr)) {
-                    LANGID targetLangId = 0;
-                    const GUID* targetGuidProfile = nullptr;
-                    if (g_pSharedData->ifLangId && g_pSharedData->ifGuidProfile) {
-                        if (*g_pSharedData->ifLangId == prevProfile.langid &&
-                            IsEqualGUID(*g_pSharedData->ifGuidProfile, prevProfile.guidProfile)) {
-                            targetLangId = g_pSharedData->langid ? *g_pSharedData->langid : 0;
-                            targetGuidProfile = g_pSharedData->guidProfile ? &(*g_pSharedData->guidProfile) : nullptr;
-                        } else if (g_pSharedData->elseLangId && g_pSharedData->elseGuidProfile) {
-                            targetLangId = *g_pSharedData->elseLangId;
-                            targetGuidProfile = &(*g_pSharedData->elseGuidProfile);
-                        } else {
-                            LOG_INFO("Condition not met, skipping profile switch");
-                            hr = S_OK;
-                        }
-                    } else {
-                        if (g_pSharedData->langid && g_pSharedData->guidProfile) {
-                            targetLangId = *g_pSharedData->langid;
-                            targetGuidProfile = &(*g_pSharedData->guidProfile);
-                        } else {
-                            LOG_INFO("No target profile specified, skipping profile switch");
-                        }
-                    }
-
-                    LOG_INFO("targetLangId=0x%04X", targetLangId);
-                    if (targetGuidProfile) {
-                        LOG_INFO("targetGuidProfile = {%08lX-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}",
-                                 targetGuidProfile->Data1,
-                                 targetGuidProfile->Data2,
-                                 targetGuidProfile->Data3,
-                                 targetGuidProfile->Data4[0], targetGuidProfile->Data4[1],
-                                 targetGuidProfile->Data4[2], targetGuidProfile->Data4[3],
-                                 targetGuidProfile->Data4[4], targetGuidProfile->Data4[5],
-                                 targetGuidProfile->Data4[6], targetGuidProfile->Data4[7]);
-                    } else {
-                        LOG_INFO("targetGuidProfile = nullptr");
-                    }
-
-                    LOG_INFO("WndProcHook: pProfileMgr=%p", pProfileMgr);
-                    IEnumTfInputProcessorProfiles* pEnum = nullptr;
-                    hr = pProfileMgr->EnumProfiles(0, &pEnum);
-                    if (SUCCEEDED(hr)) {
-                        TF_INPUTPROCESSORPROFILE profile;
-                        ULONG fetched = 0;
-                        while (pEnum->Next(1, &profile, &fetched) == S_OK) {
-                            if (IsEqualGUID(profile.catid, GUID_TFCAT_TIP_KEYBOARD) && (profile.dwFlags & TF_IPP_FLAG_ENABLED)) {
-                                if (targetLangId != 0 && targetGuidProfile != nullptr &&
-                                    profile.langid == targetLangId && IsEqualGUID(profile.guidProfile, *targetGuidProfile))
-                                {
-                                    LOG_INFO("guidProfile = {%08lX-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}",
-                                             profile.guidProfile.Data1,
-                                             profile.guidProfile.Data2,
-                                             profile.guidProfile.Data3,
-                                             profile.guidProfile.Data4[0], profile.guidProfile.Data4[1],
-                                             profile.guidProfile.Data4[2], profile.guidProfile.Data4[3],
-                                             profile.guidProfile.Data4[4], profile.guidProfile.Data4[5],
-                                             profile.guidProfile.Data4[6], profile.guidProfile.Data4[7]);
-                                    hr = pProfileMgr->ActivateProfile(profile.dwProfileType,
-                                                                      profile.langid,
-                                                                      profile.clsid,
-                                                                      profile.guidProfile,
-                                                                      profile.hkl,
-                                                                      TF_IPPMF_FORPROCESS | TF_IPPMF_DONTCARECURRENTINPUTLANGUAGE);
-                                    if (SUCCEEDED(hr)) {
-                                        LOG_INFO("Profile switched successfully");
-                                    } else {
-                                        LOG_ERROR("ERROR: ActivateProfile() failed with 0x%0lx", hr);
-                                    }
-                                    break;
-                                }
-                            }
-                        }
-                        pEnum->Release();
-                    } else {
-                        LOG_ERROR("ERROR: EnumProfiles() failed with 0x%0lx", hr);
-                    }
-                } else {
-                    LOG_ERROR("ERROR: CoCreateInstance(CLSID_TF_InputProcessorProfiles) failed with 0x%0lx", hr);
-                }
-            }
-
-            if (SUCCEEDED(hr)) {
-                g_pSharedData->langid = prevProfile.langid;
-                g_pSharedData->guidProfile = prevProfile.guidProfile;
-            }
-
-            if (g_pSharedData->getKeyboardState) {
-                ITfThreadMgr* pThreadMgrGet = NULL;
-                ITfCompartmentMgr* pCompartmentMgrGet = nullptr;
-
-                pThreadMgrGet = GetThreadMgrSingleton();
-                HRESULT hrGet = pThreadMgrGet ? S_OK : E_FAIL;
-                if (SUCCEEDED(hrGet)) {
-                    hrGet = pThreadMgrGet->QueryInterface(IID_ITfCompartmentMgr, (void**)&pCompartmentMgrGet);
-                }
-
-                if (SUCCEEDED(hrGet)) {
-                    ITfCompartment* keyboardOpenCloseCompartment = nullptr;
-                    hrGet = pCompartmentMgrGet->GetCompartment(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE, &keyboardOpenCloseCompartment);
-                    if (SUCCEEDED(hrGet)) {
-                        VARIANT varKeyboardOpenClose;
-                        VariantInit(&varKeyboardOpenClose);
-                        hrGet = keyboardOpenCloseCompartment->GetValue(&varKeyboardOpenClose);
-                        if (SUCCEEDED(hrGet) && (varKeyboardOpenClose.vt == VT_I4 || varKeyboardOpenClose.vt == VT_UI4)) {
-                            g_pSharedData->keyboardOpenClose = (varKeyboardOpenClose.lVal != 0);
-                        }
-                        VariantClear(&varKeyboardOpenClose);
-                        keyboardOpenCloseCompartment->Release();
-                    }
-                }
-
-                if (SUCCEEDED(hrGet)) {
-                    ITfCompartment* conversionCompartment = nullptr;
-                    hrGet = pCompartmentMgrGet->GetCompartment(GUID_COMPARTMENT_KEYBOARD_INPUTMODE_CONVERSION, &conversionCompartment);
-                    if (SUCCEEDED(hrGet)) {
-                        VARIANT varConv;
-                        VariantInit(&varConv);
-                        hrGet = conversionCompartment->GetValue(&varConv);
-                        if (SUCCEEDED(hrGet) && (varConv.vt == VT_I4 || varConv.vt == VT_UI4)) {
-                            g_pSharedData->conversionModeNative = (varConv.lVal & TF_CONVERSIONMODE_NATIVE) != 0;
-                        }
-                        VariantClear(&varConv);
-                        conversionCompartment->Release();
-                    }
-                }
-
-                if (pCompartmentMgrGet) {
-                    pCompartmentMgrGet->Release();
-                }
-                if (pThreadMgrGet) {
-                    pThreadMgrGet->Release();
-                }
-                // Intentionally do not modify `hr` here: get-keyboard failures should not override prior errors.
-            }
-
-            if ((g_pSharedData->verb == VERB_SWITCH) && !g_pSharedData->getKeyboardState && (g_pSharedData->keyboardOpenClose || g_pSharedData->conversionModeNative)) {
-                pThreadMgr = GetThreadMgrSingleton();
-                hr = pThreadMgr ? S_OK : E_FAIL;
-                if (SUCCEEDED(hr)) {
-                    hr = pThreadMgr->QueryInterface(IID_ITfCompartmentMgr, (void**)&pCompartmentMgr);
-                } else {
-                    LOG_ERROR("ERROR: GetThreadMgrSingleton() failed");
-                }
-
-                if (SUCCEEDED(hr)) {
-                    hr = pThreadMgr->Activate(&clientId);
-                    if (FAILED(hr)) {
-                        LOG_ERROR("ERROR: ITfThreadMgr::Activate() failed with 0x%0lx", hr);
-                    }
-                }
-
-                if (SUCCEEDED(hr)) {
-                    if (g_pSharedData->keyboardOpenClose) {
-                        LOG_INFO("keyboardOpenClose = %d", *g_pSharedData->keyboardOpenClose);
-                        ITfCompartment* keyboardOpenCloseCompartment = nullptr;
-                        if (SUCCEEDED(hr)) {
-                            hr = pCompartmentMgr->GetCompartment(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE, &keyboardOpenCloseCompartment);
-                        } else {
-                            LOG_ERROR("ERROR: QueryInterface(IID_ITfCompartmentMgr) failed with 0x%0lx", hr);
-                        }
-                        VARIANT varKeyboardOpenClose;
-                        VariantInit(&varKeyboardOpenClose);
-                        if (SUCCEEDED(hr)) {
-                            VARIANT varCurrent;
-                            VariantInit(&varCurrent);
-                            bool needWrite = true;
-                            if (SUCCEEDED(keyboardOpenCloseCompartment->GetValue(&varCurrent)) &&
-                                (varCurrent.vt == VT_I4 || varCurrent.vt == VT_UI4)) {
-                                bool currentOpen = (varCurrent.lVal != 0);
-                                needWrite = (currentOpen != *g_pSharedData->keyboardOpenClose);
-                                if (!needWrite) {
-                                    LOG_INFO("OPENCLOSE already %d, skipping SetValue", currentOpen ? 1 : 0);
-                                }
-                            }
-                            VariantClear(&varCurrent);
-                            if (needWrite) {
-                                varKeyboardOpenClose.vt = VT_I4;
-                                if (*g_pSharedData->keyboardOpenClose) {
-                                    varKeyboardOpenClose.lVal = 1;
-                                } else {
-                                    varKeyboardOpenClose.lVal = 0;
-                                }
-                                hr = keyboardOpenCloseCompartment->SetValue(clientId, &varKeyboardOpenClose);
-                            }
-                        } else {
-                            LOG_ERROR("ERROR: GetCompartment(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE) failed with 0x%0lx", hr);
-                        }
-                        if (FAILED(hr)) {
-                            LOG_ERROR("ERROR: SetValue() failed with 0x%0lx", hr);
-                        }
-                        VariantClear(&varKeyboardOpenClose);
-                        if (keyboardOpenCloseCompartment) {
-                            keyboardOpenCloseCompartment->Release();
-                        }
-                    }
-
-                    if (g_pSharedData->conversionModeNative) {
-                        LOG_INFO("conversionModeNative = %d", *g_pSharedData->conversionModeNative);
-                        ITfCompartment* keyboardInputModeConversionCompartment = nullptr;
-                        if (SUCCEEDED(hr)) {
-                            hr = pCompartmentMgr->GetCompartment(GUID_COMPARTMENT_KEYBOARD_INPUTMODE_CONVERSION, &keyboardInputModeConversionCompartment);
-                        } else {
-                            LOG_ERROR("ERROR: QueryInterface(IID_ITfCompartmentMgr) failed with 0x%0lx", hr);
-                        }
-                        VARIANT varKeyboardInputModeConversion;
-                        VariantInit(&varKeyboardInputModeConversion);
-                        varKeyboardInputModeConversion.vt = VT_EMPTY;
-                        if (SUCCEEDED(hr)) {
-                            hr = keyboardInputModeConversionCompartment->GetValue(&varKeyboardInputModeConversion);
-                        } else {
-                            LOG_ERROR("ERROR: GetCompartment(GUID_COMPARTMENT_KEYBOARD_INPUTMODE_CONVERSION) failed with 0x%0lx", hr);
-                        }
-                        if (SUCCEEDED(hr)) {
-                            DWORD oldMode = 0;
-                            if (varKeyboardInputModeConversion.vt == VT_I4 || varKeyboardInputModeConversion.vt == VT_UI4) {
-                                oldMode = varKeyboardInputModeConversion.lVal;
-                            }
-                            DWORD newMode = oldMode;
-                            if  (*g_pSharedData->conversionModeNative) {
-                                newMode |= TF_CONVERSIONMODE_NATIVE;
-                            } else {
-                                newMode &= ~TF_CONVERSIONMODE_NATIVE;
-                            }
-                            if (newMode != oldMode) {
-                                varKeyboardInputModeConversion.vt = VT_I4;
-                                varKeyboardInputModeConversion.lVal = newMode;
-                                hr = keyboardInputModeConversionCompartment->SetValue(clientId, &varKeyboardInputModeConversion);
-                            }
-                        } else {
-                            LOG_ERROR("ERROR: GetValue() failed with 0x%0lx", hr);
-                        }
-                        if (FAILED(hr)) {
-                            LOG_ERROR("ERROR: SetValue() failed with 0x%0lx", hr);
-                        }
-                        VariantClear(&varKeyboardInputModeConversion);
-                        if (keyboardInputModeConversionCompartment) {
-                            keyboardInputModeConversionCompartment->Release();
-                        }
-                    }
-
-                    // if (g_isWeaselToggleImeOnOpenClose && g_pSharedData->conversionModeNative && !g_pSharedData->keyboardOpenClose) {
-                    //     ITfCompartment* ocCompartment = nullptr;
-                    //     HRESULT hrOC = pCompartmentMgr->GetCompartment(GUID_COMPARTMENT_KEYBOARD_OPENCLOSE, &ocCompartment);
-                    //     if (SUCCEEDED(hrOC)) {
-                    //         VARIANT varOC;
-                    //         VariantInit(&varOC);
-                    //         hrOC = ocCompartment->GetValue(&varOC);
-                    //         if (SUCCEEDED(hrOC) && (varOC.vt == VT_I4 || varOC.vt == VT_UI4) && varOC.lVal == 0) {
-                    //             VARIANT varSet;
-                    //             VariantInit(&varSet);
-                    //             varSet.vt = VT_I4;
-                    //             varSet.lVal = 1;
-                    //             ocCompartment->SetValue(clientId, &varSet);
-                    //         }
-                    //         VariantClear(&varOC);
-                    //         ocCompartment->Release();
-                    //     }
-                    // }
-                } else {
-                    LOG_ERROR("ERROR: QueryInterface(IID_ITfCompartmentMgr) failed with 0x%0lx", hr);
-                }
-            }
-
-            if (SUCCEEDED(hr)) {
-                if (!SetEvent(g_hEvent)) {
-                    LOG_ERROR("SetEvent() failed with 0x%lx", GetLastError());
-                    g_pSharedData->err = ERR_SET_EVENT;
-                } else {
-                    LOG_INFO("SetEvent() succeeded");
-                }
-            }
-
-            if (pCompartmentMgr) {
-                pCompartmentMgr->Release();
-            }
-            if (pThreadMgr) {
-                if (clientId != TF_CLIENTID_NULL) {
-                    pThreadMgr->Deactivate();
-                }
-                pThreadMgr->Release();
-            }
-            if (pProfileMgr) {
-                pProfileMgr->Release();
-            }
-            if (bCOMInitializedByMe) {
-                CoUninitialize();
+            // Never let an exception escape the hook callback.
+            HRESULT hr = S_OK;
+            try {
+                applyInputMethodState();
+            } catch (const COMError& e) {
+                LOG_ERROR("ERROR: %s", e.what());
+                hr = e.code();
+            } catch (const WinAPIError& e) {
+                LOG_ERROR("ERROR: %s", e.what());
+                hr = HRESULT_FROM_WIN32(e.code());
+            } catch (const std::exception& e) {
+                LOG_ERROR("ERROR: %s", e.what());
+                hr = E_FAIL;
+            } catch (...) {
+                LOG_ERROR("ERROR: Unknown exception");
+                hr = E_FAIL;
             }
 
             LOG_INFO("Done");
